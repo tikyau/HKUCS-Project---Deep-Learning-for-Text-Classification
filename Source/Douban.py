@@ -10,6 +10,7 @@ import cntk.device
 import warnings
 import sys
 import pyparsing
+from datetime import datetime
 
 
 def get_size(file_path):
@@ -33,17 +34,23 @@ def create_model(y):
     with C.layers.default_options(initial_state=0.1):
         return C.layers.Sequential([
             C.layers.Embedding(parameters["embDim"], name='embed'),
+            C.layers.Stabilizer(),
+            BiRecurrence(
+                C.layers.LSTM(parameters["hiddenDim"] // 2, activation=C.tanh),
+                C.layers.LSTM(parameters["hiddenDim"] // 2, activation=C.tanh)),
             C.layers.BatchNormalization(),
-            # BiRecurrence(
-            #     C.layers.LSTM(parameters["hiddenDim"] // 2),
-            #     C.layers.LSTM(parameters["hiddenDim"] // 2),
-            # ),
-            C.layers.Recurrence(C.layers.GRU(parameters["hiddenDim"] // 2)),
+            BiRecurrence(
+                C.layers.LSTM(parameters["hiddenDim"] // 3, activation=C.tanh),
+                C.layers.LSTM(parameters["hiddenDim"] // 3, activation=C.tanh)),
+            # C.layers.Recurrence(
+            #     C.layers.GRU(parameters["hiddenDim"] // 2)),
+            # C.layers.Recurrence(
+            #     C.layers.GRU(parameters["hiddenDim"] // 2), go_backwards=True),
+            # C.splice,
             C.layers.BatchNormalization(),
             C.sequence.last,
-            C.layers.Dropout(0.3),
             C.layers.Dense(y.shape, name='classify')
-        ], name="GRU")
+        ], name="2LayersBiLSTM")
 
 
 def create_criterion_function(model, labels):
@@ -55,7 +62,7 @@ def create_criterion_function(model, labels):
 def train(trainReader, testReader, model, x, y, max_epochs=20):
 
     # Instantiate the model function; x is the input (feature) variable
-    logPath = "log/" + model.name
+    logPath = "log/" + model.name + '/' + datetime.now().strftime("%h,%d_%H_%M")
     savePath = "model/" + model.name
     # Instantiate the loss and error function
     metric = create_criterion_function(model, y)
@@ -73,14 +80,14 @@ def train(trainReader, testReader, model, x, y, max_epochs=20):
     )
 
     # Momentum schedule
-    momentum_as_time_constant = C.momentum_as_time_constant_schedule(100)
+    momentum_as_time_constant = C.momentum_as_time_constant_schedule(50)
 
     # Adam optimizer
     learner = C.adam(
         parameters=model.parameters,
         lr=lr_schedule,
         momentum=momentum_as_time_constant,
-        gradient_clipping_threshold_per_sample=15,
+        gradient_clipping_threshold_per_sample=5,
         gradient_clipping_with_truncation=True
     )
 
@@ -113,11 +120,14 @@ def train(trainReader, testReader, model, x, y, max_epochs=20):
         frequency=epoch_size
     )
 
+    checkpointConfig = CheckpointConfig(
+        savePath, frequency=epoch_size, restore=False)
+
     training_session(
         trainer=trainer, mb_source=trainReader, mb_size=minibatch_size,
         model_inputs_to_streams=inputMap(trainReader),
         progress_frequency=epoch_size, cv_config=cvConfig,
-        max_samples=epoch_size * max_epochs
+        max_samples=epoch_size * max_epochs, checkpoint_config=checkpointConfig
     ).train()
 
 
@@ -143,37 +153,6 @@ def evaluate(reader, model, x, y):
     evaluator.summarize_test_progress()
 
 
-# def show_samples(reader, model, x, num=5):
-#     print('\nShowing {} samples:'.format(num))
-
-#     vocab = [line.rstrip('\n') for line in open(vocab_file_path)]
-#     label = [line.rstrip('\n') for line in open(label_file_path)]
-
-#     vocab_dict = {i: vocab[i] for i in range(vocab_size)}
-#     label_dict = {i: label[i] for i in range(label_dim)}
-
-#     for i in range(num):
-#         entry = reader.next_minibatch(1, input_map={
-#             x: reader.streams.sentence,
-#             y: reader.streams.label
-#         })
-#         while np.random.random() >= 0.5:
-#             entry = reader.next_minibatch(1, input_map={
-#                 x: reader.streams.sentence,
-#                 y: reader.streams.label
-#             })
-#         inp_seq = list(entry.values())[0].as_sequences(x)
-#         truth = list(entry.values())[1].as_sequences(y)[0]
-#         pred = model.eval({x: inp_seq})[0]
-#         pred_label = label_dict[np.argmax(pred)]
-#         truth_label = label_dict[truth.argmax()]
-#         word_indices = inp_seq[0].argmax(axis=1).T.tolist()[0]
-#         sentence = ''.join(map(lambda i: vocab_dict[i], word_indices))
-#         print('\nInput sentence:', sentence)
-#         print('True label     :', truth_label)
-#         print('Predicted label:', pred_label)
-
-
 def main():
     cntk.device.try_set_default_device(cntk.device.gpu(0))
     warnings.filterwarnings("ignore")
@@ -191,7 +170,7 @@ def main():
     xDim = get_size(vocab_file_path)  # xDim is the size of vocabulary
     yDim = get_size(label_file_path)  # yDim is the number of labels
     train_size = get_size(plain_train_file_path)
-
+    C.cntk_py.set_fixed_random_seed(1)
     print('Vocabulary size :', xDim)
     print('Number of labels:', yDim)
     print("Training size:", train_size)
