@@ -13,12 +13,6 @@ import matplotlib.pyplot as plt
 import jieba
 
 
-def default(v, d):
-    if v is not None:
-        return v
-    return d
-
-
 def is_Chinese(s):
     return reduce(
         lambda x, y: x or y,
