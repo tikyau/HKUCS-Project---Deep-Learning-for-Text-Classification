@@ -1,6 +1,8 @@
 # Python cached bytecode
 *.pyc
 
+**/model/
+
 out
 *.out
 **/*.out
