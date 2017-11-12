@@ -171,7 +171,7 @@ def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
 
 def plot_log(
         log_file_path, x_field, y_field, smooth_factor, to_accuracy,
-        x_label, y_label, title, color, transparent, min_x, max_x):
+        x_label, y_label, title, color, transparent, dpi, min_x, max_x):
     def _running_average_smooth(y, window_size):
         kernel = np.ones(window_size) / window_size
         y_pad = np.lib.pad(y, (window_size, ), 'edge')
@@ -227,7 +227,7 @@ def plot_log(
 
     plt.savefig(
         '{}.png'.format(title.replace(' ', '_')),
-        bbox_inches='tight', transparent=transparent
+        bbox_inches='tight', transparent=transparent, dpi=dpi
     )
 
 
@@ -336,6 +336,10 @@ if __name__ == "__main__":
             type=bool, default=False
         )
         parser.add_argument(
+            '--dpi', help='DPI of saved figure file',
+            type=int, default=500
+        )
+        parser.add_argument(
             '--smooth_factor', help='smooth factor',
             type=int, default=9
         )
@@ -365,6 +369,7 @@ if __name__ == "__main__":
             title=args['title'],
             color=args['color'],
             transparent=args['transparent'],
+            dpi=args['dpi'],
             min_x=args['min_x'],
             max_x=args['max_x']
         )
