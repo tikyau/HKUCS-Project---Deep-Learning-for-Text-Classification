@@ -195,7 +195,7 @@ def plot_log(
                     x.append(int(row[x_field].strip()))
                 except ValueError:
                     raise ValueError('x-axis value error at line {}: {}'.format(
-                        i, row[x_field].strip()
+                        i + 1, row[x_field].strip()
                     ))
                 try:
                     y.append(
@@ -204,7 +204,7 @@ def plot_log(
                     )
                 except ValueError:
                     raise ValueError('y-axis value error at line {}: {}'.format(
-                        i, row[y_field].strip()
+                        i + 1, row[y_field].strip()
                     ))
 
     x = np.asarray(x)
