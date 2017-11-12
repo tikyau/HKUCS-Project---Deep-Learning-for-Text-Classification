@@ -226,7 +226,8 @@ def plot_log(
     print('[plot_log]\tSaving figure ...')
 
     plt.savefig(
-        '{}.png'.format(title), bbox_inches='tight', transparent=transparent
+        '{}.png'.format(title.replace(' ', '_')),
+        bbox_inches='tight', transparent=transparent
     )
 
 
