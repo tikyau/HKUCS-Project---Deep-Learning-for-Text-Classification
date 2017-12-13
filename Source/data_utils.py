@@ -2,7 +2,7 @@ from __future__ import (absolute_import, division, print_function)
 
 from functools import reduce
 from random import shuffle
-
+import itertools
 import os
 import collections
 import csv
@@ -11,6 +11,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import jieba
+
+UNKNOWN_TOKEN = "UNKNOWN"
 
 
 def default(v, d):
@@ -70,95 +72,49 @@ def has_Chinese(s):
 def build_dataset(
         csv_file_path, data_field, label_field,
         delimiter=',', quotechar='"',
-        dataset_file_name='data.txt',
-        vocab_file_name='vocabulary.txt',
-        label_file_name='labels.txt',
+        output_file="data.txt",
         report_freq=100,
         segmnt_func=jieba.cut,
-        filter_func=is_Chinese):
-    vocb = list()
-    data = list()
-    labl = set()
+        filter_func=is_Chinese,
+        unknown_number=0):
 
     jieba.enable_parallel(8)
 
     print('[build_dataset]\tReading CSV file ...')
-    with open(csv_file_path, 'r', newline='') as f:
+    with open(csv_file_path, 'r', newline='') as f, open(output_file, 'w') as g:
         reader = csv.DictReader(f, delimiter=delimiter, quotechar=quotechar)
-        record = collections.defaultdict(list)
+        i = 0
         for row in reader:
-            record[row[label_field]].append(row[data_field].strip())
-
-    minSize = min(len(record[i]) for i in record)
-    for label in record:
-        sentences = record[label][:minSize]
-        shuffle(sentences)
-        for i, sentence in enumerate(sentences):
-            if i % report_freq == 0:
-                print('[build_dataset]\tProcessing line #{} ...'.format(i + 1))
             sentence = list(filter(
                 lambda x: x and filter_func(x),
-                segmnt_func(sentence)
+                segmnt_func(row[data_field].strip())
             ))
             if sentence:
-                data.append((sentence, label))
-                vocb += sentence
-
-    print('[build_dataset]\tBuilding vocabulary ...')
-    vocb = collections.Counter(vocb).most_common()
-
-    print(('[build_dataset]\tSuccessfully extracted {} words for vocabulary ' +
-           'and {} labels from {} entries for data.')
-          .format(len(vocb), len(labl), len(data)))
-
-    print('[build_dataset]\tWriting vocabulary to file {} ...'
-          .format(vocab_file_name))
-    with open(vocab_file_name, 'w') as vocabulary_file:
-        for word, _ in vocb:
-            vocabulary_file.write('{}\n'.format(word))
-
-    print('[build_dataset]\tWriting labels to file {} ...'
-          .format(label_file_name))
-    with open(label_file_name, 'w') as label_file:
-        for label in record.keys():
-            label_file.write('{}\n'.format(label))
-
-    print('[build_dataset]\tWriting dataset to file {} ...'
-          .format(dataset_file_name))
-    with open(dataset_file_name, 'w') as data_file:
-        for sentence, label in data:
-            data_file.write('{}\t{}\n'.format(' '.join(sentence), label))
-
-    del vocb
-    del labl
-    del data
-
+                g.write("{}\t{}\n".format(
+                    ' '.join(sentence), row[label_field]))
+                i += 1
+            if i % report_freq == 0:
+                print("[build_dataset]\tProcessing line #{} ...".format(i + 1))
     print('[build_dataset]\tCompleted!')
 
 
-def train_test_split(
-        dataset_file_path, train_file_name='train.txt',
-        test_file_name='test.txt', train_ratio=0.80):
-    print('[train_test_split]\tReading data file ...')
-
-    with open(dataset_file_path, 'r') as data_file:
-        lines = data_file.readlines()
-
-    print('[train_test_split]\tShuffling data entries ...')
-    shuffle(lines)
-    train_num = int(len(lines) * train_ratio)
-    print(('[train_test_split]\tRandomly sampled {} entries for training, ' +
-           '{} entries for testing.').format(train_num, len(lines) - train_num))
-
-    print('[train_test_split]\tWriting training set ...')
-    with open(train_file_name, 'w') as train_file:
-        train_file.writelines(lines[:train_num])
-
-    print('[train_test_split]\tWriting testing set ...')
-    with open(test_file_name, 'w') as test_file:
-        test_file.writelines(lines[train_num:])
-
-    del lines
+def split(data_file_name,
+          train_file_name="train.txt",
+          test_file_name="test.txt",
+          train_ratio=0.8,
+          unknown_number=0,
+          vocab_file_name="vocabulary.txt",
+          label_file_name="label.txt"):
+    record = []
+    with open(data_file_name, 'r') as f:
+        for line in f:
+            sentence, label = line[:-1].split('\t')
+            record.append((sentence.split(' '), label))
+    shuffle(record)
+    trainNum = int(len(record) * train_ratio)
+    allWords = itertools.chain.from_iterable([i[0] for i in record])
+    vocabularyCounter = collections.Counter(allWords)
+    f
 
 
 def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
@@ -192,9 +148,9 @@ def plot_log(
     with open(log_file_path, 'r', newline='') as f:
         reader = csv.DictReader(f)
         for i, row in enumerate(reader):
-            if min_x >=0 and int(row[x_field].strip()) < min_x:
+            if min_x >= 0 and int(row[x_field].strip()) < min_x:
                 continue
-            if max_x >=0 and int(row[x_field].strip()) > max_x:
+            if max_x >= 0 and int(row[x_field].strip()) > max_x:
                 break
             if row[y_field].strip().lower() != 'nan':
                 try:
@@ -240,7 +196,7 @@ if __name__ == "__main__":
     import sys
     import argparse
 
-    if len(sys.argv) > 1 and sys.argv[1] == '--build':
+    if len(sys.argv) > 1 and sys.argv[1] == '--segment':
         parser = argparse.ArgumentParser(description='Build dataset from CSV.')
         parser.add_argument('csv_file_path', help='path to CSV file')
         parser.add_argument(
@@ -248,32 +204,22 @@ if __name__ == "__main__":
         parser.add_argument(
             'label_field', help='field name of label entry in CSV')
         parser.add_argument(
-            '--dataset_file_name', help='where to store dataset',
-            default='data.txt'
+            "--output_file", help="output file",
+            default="data.txt"
         )
-        parser.add_argument(
-            '--vocab_file_name', help='where to store vocabulary',
-            default='vocabulary.txt'
-        )
-        parser.add_argument(
-            '--label_file_name', help='where to store labels',
-            default='labels.txt'
-        )
-
         args = vars(parser.parse_args(sys.argv[2:]))
 
         build_dataset(
             args['csv_file_path'],
             args['data_field'],
             args['label_field'],
-            dataset_file_name=args['dataset_file_name'],
-            vocab_file_name=args['vocab_file_name'],
-            label_file_name=args['label_file_name']
+            output_file=args["output_file"]
         )
-
-    elif len(sys.argv) > 1 and sys.argv[1] == '--split':
-        parser = argparse.ArgumentParser(description='Preprocess datasets.')
-        parser.add_argument('dataset_file_path', help='path to dataset file')
+    elif len(sys.argv) > 1 and sys.argv[1] == "--split":
+        parser.add_argument(
+            "data_file_name", help="input data",
+            default="data.txt"
+        )
         parser.add_argument(
             '--train_file_name', help='where to store training dataset',
             default='train.txt'
@@ -286,15 +232,21 @@ if __name__ == "__main__":
             '--train_ratio', help='training set ratio',
             type=float, default=0.8
         )
-
-        args = vars(parser.parse_args(sys.argv[2:]))
-
-        train_test_split(
-            args['dataset_file_path'],
-            train_file_name=args['train_file_name'],
-            test_file_name=args['test_file_name'],
-            train_ratio=args['train_ratio']
+        parser.add_argument(
+            '--vocab_file_name', help='where to store vocabulary',
+            default='vocabulary.txt'
         )
+        parser.add_argument(
+            '--label_file_name', help='where to store labels',
+            default='labels.txt'
+        )
+
+        parser.add_argument(
+            "--unknown_number", help="top n words to be labelled as unknown",
+            default=0, type=int
+        )
+        args = vars(parser.parse_args(sys.argv[2:]))
+        split(args["data_file_name"], **args)
 
     elif len(sys.argv) > 1 and sys.argv[1] == '--ctf':
         parser = argparse.ArgumentParser(
@@ -375,6 +327,5 @@ if __name__ == "__main__":
         )
     else:
         print(
-            'First argument must be "--build", "--split", "--ctf", or "--plot".'
-            , file=sys.stderr
+            'First argument must be "--segment", "--ctf", or "--plot".', file=sys.stderr
         )
