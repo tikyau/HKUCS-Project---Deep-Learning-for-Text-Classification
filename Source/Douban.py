@@ -39,18 +39,18 @@ def create_model(y):
                 C.layers.LSTM(parameters["hiddenDim"] // 2, activation=C.tanh),
                 C.layers.LSTM(parameters["hiddenDim"] // 2, activation=C.tanh)),
             C.layers.BatchNormalization(),
-            BiRecurrence(
-                C.layers.LSTM(parameters["hiddenDim"] // 3, activation=C.tanh),
-                C.layers.LSTM(parameters["hiddenDim"] // 3, activation=C.tanh)),
+            #            BiRecurrence(
+            #                C.layers.LSTM(parameters["hiddenDim"] // 3, activation=C.tanh),
+            #                C.layers.LSTM(parameters["hiddenDim"] // 3, activation=C.tanh)),
             # C.layers.Recurrence(
             #     C.layers.GRU(parameters["hiddenDim"] // 2)),
             # C.layers.Recurrence(
             #     C.layers.GRU(parameters["hiddenDim"] // 2), go_backwards=True),
             # C.splice,
-            C.layers.BatchNormalization(),
-            C.sequence.last,
+            #            C.layers.BatchNormalization(),
+            #            C.sequence.last,
             C.layers.Dense(y.shape, name='classify')
-        ], name="2LayersBiLSTM")
+        ], name="2LayersBiLSTMNoLast")
 
 
 def create_criterion_function(model, labels):

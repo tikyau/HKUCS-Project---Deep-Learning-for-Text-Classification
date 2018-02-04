@@ -2,11 +2,14 @@ from __future__ import (absolute_import, division, print_function)
 
 from functools import reduce
 from random import shuffle
+from concurrent.futures import ProcessPoolExecutor
+import multiprocessing
 import itertools
 import os
 import collections
 import csv
-
+import json
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -14,58 +17,27 @@ import jieba
 
 UNKNOWN_TOKEN = "UNKNOWN"
 
-
-def default(v, d):
-    if v is not None:
-        return v
-    return d
+known_vocabularies = set()
 
 
-def is_Chinese(s):
-    return reduce(
-        lambda x, y: x or y,
-        map(
-            lambda p: reduce(
-                lambda x, y: x and y,
-                map(lambda c: not c.isspace() and p[0] <= c <= p[1], s),
-                True
-            ),
-            (
-                ('\u4E00', '\u9FFF'),
-                ('\u3400', '\u4DBF'),
-                ('\u20000', '\u2A6DF'),
-                ('\u2A700', '\u2B73F'),
-                ('\u2B740', '\u2B81F'),
-                ('\u2B820', '\u2CEAF'),
-                ('\u2CEB0', '\u2EBEF'),
-                ('\uF900', '\uFAFF')
-            )
-        ),
-        False
-    )
+def is_Chinese_char(c):
+    return any(map(lambda x: c >= x[0] and c <= x[1], (
+        ('\u4E00', '\u9FFF'),
+        ('\u3400', '\u4DBF'),
+        ('\u20000', '\u2A6DF'),
+        ('\u2A700', '\u2B73F'),
+        ('\u2B740', '\u2B81F'),
+        ('\u2B820', '\u2CEAF'),
+        ('\u2CEB0', '\u2EBEF'),
+        ('\uF900', '\uFAFF')
+    )))
 
 
-def has_Chinese(s):
-    return reduce(
-        lambda x, y: x or y,
-        map(
-            lambda p: reduce(
-                lambda x, y: x or y,
-                map(lambda c: not c.isspace() and p[0] <= c <= p[1], s),
-                True
-            ),
-            (
-                ('\u4E00', '\u9FFF'),
-                ('\u3400', '\u4DBF'),
-                ('\u20000', '\u2A6DF'),
-                ('\u2A700', '\u2B73F'),
-                ('\u2B740', '\u2B81F'),
-                ('\u2B820', '\u2CEAF'),
-                ('\u2CEB0', '\u2EBEF'),
-                ('\uF900', '\uFAFF')
-            )
-        ),
-        False
+def replace(i):
+    return "{}\t{}".format(
+        " ".join(
+            list(map(lambda x: x if x in known_vocabularies else UNKNOWN_TOKEN, i[0]))),
+        i[1]
     )
 
 
@@ -75,10 +47,10 @@ def build_dataset(
         output_file="data.txt",
         report_freq=100,
         segmnt_func=jieba.cut,
-        filter_func=is_Chinese,
+        filter_func=is_Chinese_char,
         unknown_number=0):
 
-    jieba.enable_parallel(8)
+    jieba.enable_parallel(multiprocessing.cpu_count())
 
     print('[build_dataset]\tReading CSV file ...')
     with open(csv_file_path, 'r', newline='') as f, open(output_file, 'w') as g:
@@ -86,7 +58,7 @@ def build_dataset(
         i = 0
         for row in reader:
             sentence = list(filter(
-                lambda x: x and filter_func(x),
+                lambda x: x and filter_func(x) and not x.isspace(),
                 segmnt_func(row[data_field].strip())
             ))
             if sentence:
@@ -98,23 +70,66 @@ def build_dataset(
     print('[build_dataset]\tCompleted!')
 
 
+def replace_and_write(pool, records, file_name):
+    with open(file_name, "w") as f:
+        new_sentences = pool.map(replace, records)
+        f.write("\n".join(new_sentences))
+        f.write("\n")
+
+
 def split(data_file_name,
           train_file_name="train.txt",
           test_file_name="test.txt",
+          dev_file_name="dev.txt",
           train_ratio=0.8,
+          dev_ratio=0.1,
           unknown_number=0,
+          output_dir=".",
           vocab_file_name="vocabulary.txt",
-          label_file_name="label.txt"):
-    record = []
+          label_file_name="labels.txt", ignored_labels="", even=False):
+    assert(train_ratio + dev_ratio < 1)
+    ignored_labels = set(ignored_labels.split(','))
+    records = collections.defaultdict(list)
+    print("[Split dataset]\tReading from file...")
     with open(data_file_name, 'r') as f:
         for line in f:
             sentence, label = line[:-1].split('\t')
-            record.append((sentence.split(' '), label))
-    shuffle(record)
-    trainNum = int(len(record) * train_ratio)
-    allWords = itertools.chain.from_iterable([i[0] for i in record])
-    vocabularyCounter = collections.Counter(allWords)
-    f
+            if label in ignored_labels:
+                continue
+            records[label].append(sentence.split())
+    print("[Split dataset]\tBuilding vocabulary...")
+    labels = records.keys()
+    if even:
+        min_size = min(map(lambda x: len(x), records.values()))
+
+        records = list(itertools.chain.from_iterable(
+            [(i, label) for i in records[label][:min_size]] for label in records.keys()))
+    else:
+        records = list(itertools.chain.from_iterable(
+            [(i, label) for i in records[label]] for label in records.keys()))
+    shuffle(records)
+    train_size = int(len(records) * train_ratio)
+    dev_size = int(len(records) * dev_ratio)
+    all_words = itertools.chain.from_iterable(
+        i[0] for i in records[:train_size])
+    vocabs = [i[0] for i in collections.Counter(
+        all_words).most_common()[unknown_number:]]
+    global known_vocabularies
+    known_vocabularies = set(vocabs)
+    print("[Split dataset]\tWriting to files...")
+    with ProcessPoolExecutor() as pool:
+        replace_and_write(pool, records[:train_size], os.path.join(
+            output_dir, train_file_name))
+        replace_and_write(
+            pool, records[train_size: train_size + dev_size], os.path.join(output_dir, dev_file_name))
+        replace_and_write(
+            pool, records[train_size + dev_size:], os.path.join(output_dir, test_file_name))
+    with open(os.path.join(output_dir, vocab_file_name), "w") as f:
+        f.write("\n".join(vocabs))
+        f.write("\n")
+    with open(os.path.join(output_dir, label_file_name), "w") as f:
+        f.write("\n".join(labels))
+        f.write("\n")
 
 
 def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
@@ -196,7 +211,7 @@ if __name__ == "__main__":
     import sys
     import argparse
 
-    if len(sys.argv) > 1 and sys.argv[1] == '--segment':
+    if len(sys.argv) > 1 and sys.argv[1] == 'segment':
         parser = argparse.ArgumentParser(description='Build dataset from CSV.')
         parser.add_argument('csv_file_path', help='path to CSV file')
         parser.add_argument(
@@ -215,10 +230,15 @@ if __name__ == "__main__":
             args['label_field'],
             output_file=args["output_file"]
         )
-    elif len(sys.argv) > 1 and sys.argv[1] == "--split":
+    elif len(sys.argv) > 1 and sys.argv[1] == "split":
+        parser = argparse.ArgumentParser(
+            description="split dataset and store vocabularies")
         parser.add_argument(
-            "data_file_name", help="input data",
-            default="data.txt"
+            "data_file_name", help="input data"
+        )
+        parser.add_argument(
+            "--output_dir", help="output directory",
+            default="."
         )
         parser.add_argument(
             '--train_file_name', help='where to store training dataset',
@@ -229,8 +249,16 @@ if __name__ == "__main__":
             default='test.txt'
         )
         parser.add_argument(
+            "--dev_file_name", help="where to store testing dataset",
+            default="dev.txt"
+        )
+        parser.add_argument(
             '--train_ratio', help='training set ratio',
             type=float, default=0.8
+        )
+        parser.add_argument(
+            "--dev_ratio", help="development set ratio",
+            type=float, default=0.1
         )
         parser.add_argument(
             '--vocab_file_name', help='where to store vocabulary',
@@ -240,15 +268,27 @@ if __name__ == "__main__":
             '--label_file_name', help='where to store labels',
             default='labels.txt'
         )
-
+        parser.add_argument(
+            "--even", help="whether to subsample to make all labels even",
+            default=False,
+            type=bool
+        )
+        parser.add_argument(
+            "--ignored_labels", help="ingore labels, delimited by comma",
+            default="",
+            type=str
+        )
         parser.add_argument(
             "--unknown_number", help="top n words to be labelled as unknown",
             default=0, type=int
         )
         args = vars(parser.parse_args(sys.argv[2:]))
-        split(args["data_file_name"], **args)
-
-    elif len(sys.argv) > 1 and sys.argv[1] == '--ctf':
+        file_name = args["data_file_name"]
+        del args["data_file_name"]
+        split(file_name, **args)
+        with open("{}/split.conf".format(args["output_dir"]), "w") as f:
+            json.dump(args, f)
+    elif len(sys.argv) > 1 and sys.argv[1] == 'ctf':
         parser = argparse.ArgumentParser(
             description='Generate CNTK Text Format file.'
         )
@@ -327,5 +367,5 @@ if __name__ == "__main__":
         )
     else:
         print(
-            'First argument must be "--segment", "--ctf", or "--plot".', file=sys.stderr
+            'First argument must be "segment", "split", "ctf", or "plot".', file=sys.stderr
         )
