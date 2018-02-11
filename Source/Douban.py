@@ -46,7 +46,7 @@ def create_model(y):
 
 
 def create_criterion_function(model, labels):
-    ce = C.cross_entropy_with_softmax(model, labels)
+    ce = C.squared_error(C.softmax(model), labels)
     errs = C.classification_error(model, labels)
     return ce, errs  # (model, labels) -> (loss, error metric)
 
@@ -200,7 +200,7 @@ def main():
     model = create_model(y)(x)
     print(model.embed.E.shape)
     print(model.classify.b.value)
-    train(train_reader, dev_reader, model, x, y, output_dir)
+    train_and_test(train_reader, dev_reader, model, x, y, output_dir)
     evaluate(test_reader, model, x, y)
 
 
