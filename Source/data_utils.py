@@ -36,7 +36,8 @@ def is_Chinese_char(c):
 def replace(i):
     return "{}\t{}".format(
         " ".join(
-            list(map(lambda x: x if x in known_vocabularies else UNKNOWN_TOKEN, i[0]))),
+            list(map(lambda x: x if x in known_vocabularies else UNKNOWN_TOKEN,
+                     i[0]))),
         i[1]
     )
 
@@ -53,7 +54,8 @@ def build_dataset(
     jieba.enable_parallel(multiprocessing.cpu_count())
 
     print('[build_dataset]\tReading CSV file ...')
-    with open(csv_file_path, 'r', newline='') as f, open(output_file, 'w') as g:
+    with open(csv_file_path, 'r', newline='') as f,
+        open(output_file, 'w') as g:
         reader = csv.DictReader(f, delimiter=delimiter, quotechar=quotechar)
         i = 0
         for row in reader:
@@ -101,12 +103,13 @@ def split(data_file_name,
     labels = records.keys()
     if even:
         min_size = min(map(lambda x: len(x), records.values()))
-
         records = list(itertools.chain.from_iterable(
-            [(i, label) for i in records[label][:min_size]] for label in records.keys()))
+            [(i, label) for i in records[label][:min_size]]
+            for label in records.keys()))
     else:
         records = list(itertools.chain.from_iterable(
-            [(i, label) for i in records[label]] for label in records.keys()))
+            [(i, label) for i in records[label]]
+            for label in records.keys()))
     shuffle(records)
     train_size = int(len(records) * train_ratio)
     dev_size = int(len(records) * dev_ratio)
@@ -122,9 +125,11 @@ def split(data_file_name,
         replace_and_write(pool, records[:train_size], os.path.join(
             output_dir, train_file_name))
         replace_and_write(
-            pool, records[train_size: train_size + dev_size], os.path.join(output_dir, dev_file_name))
+            pool, records[train_size: train_size + dev_size],
+            os.path.join(output_dir, dev_file_name))
         replace_and_write(
-            pool, records[train_size + dev_size:], os.path.join(output_dir, test_file_name))
+            pool, records[train_size + dev_size:],
+            os.path.join(output_dir, test_file_name))
     with open(os.path.join(output_dir, vocab_file_name), "w") as f:
         f.write("\n".join(known_vocabularies))
         f.write("\n")
@@ -295,7 +300,8 @@ if __name__ == "__main__":
             description='Generate CNTK Text Format file.'
         )
         parser.add_argument('dataset_file_path', help='path to dataset file')
-        parser.add_argument("vocab_label_dir", help="directory to vocabulary and label files")
+        parser.add_argument("vocab_label_dir",
+                            help="directory to vocabulary and label files")
         parser.add_argument(
             '--vocab_file_name', help='path to vocabulary file',
             default='vocabulary.txt'
@@ -309,8 +315,10 @@ if __name__ == "__main__":
 
         generate_CTF(
             args['dataset_file_path'],
-            vocab_file_path=os.path.join(args["vocab_label_dir"], args['vocab_file_name']),
-            label_file_path=os.path.join(args["vocab_label_dir"], args['label_file_name'])
+            vocab_file_path=os.path.join(
+                args["vocab_label_dir"], args['vocab_file_name']),
+            label_file_path=os.path.join(
+                args["vocab_label_dir"], args['label_file_name'])
         )
 
     elif len(sys.argv) > 1 and sys.argv[1] == '--plot':
@@ -370,5 +378,5 @@ if __name__ == "__main__":
         )
     else:
         print(
-            'First argument must be "segment", "split", "ctf", or "plot".', file=sys.stderr
-        )
+            'First argument must be "segment", "split", "ctf", or "plot".',
+            file=sys.stderr)

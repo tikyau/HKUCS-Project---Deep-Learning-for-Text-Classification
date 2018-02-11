@@ -51,7 +51,7 @@ def create_criterion_function(model, labels):
     return ce, errs  # (model, labels) -> (loss, error metric)
 
 
-def train(train_reader, dev_reader, model, x, y, output_dir, max_epochs=20):
+def train_and_test(train_reader, dev_reader, model, x, y, output_dir, max_epochs=20):
     time_name = datetime.now().strftime("%h,%d_%H_%M")
     log_path = os.path.join(output_dir, time_name)
     chk_file = os.path.join(log_path, "checkpoint")
@@ -119,12 +119,16 @@ def train(train_reader, dev_reader, model, x, y, output_dir, max_epochs=20):
 
     checkpoint_config = CheckpointConfig(
         chk_file, frequency=epoch_size, restore=False)
+    test_config = TestConfig(minibatch_source=dev_reader,
+                             minibatch_size=minibatch_size, model_inputs_to_streams=input_map(
+                                 dev_reader),
+                             criterion=metric[1])
 
     training_session(
         trainer=trainer, mb_source=train_reader, mb_size=minibatch_size,
         model_inputs_to_streams=input_map(train_reader),
         progress_frequency=epoch_size, cv_config=cv_config,
-        max_samples=epoch_size * max_epochs, checkpoint_config=checkpoint_config
+        max_samples=epoch_size * max_epochs, checkpoint_config=checkpoint_config, test_config=test_config
     ).train()
 
 
@@ -184,20 +188,21 @@ def main():
             field='S1', shape=yDim, is_sparse=True)
     )
     train_reader = C.io.MinibatchSource(C.io.CTFDeserializer(train_file_path,
-                                                            streamDefs),
-                                       randomize=True,
-                                       max_sweeps=C.io.INFINITELY_REPEAT)
-    dev_reader = C.io.MinibatchSource(C.io.CTFDeserializer(dev_file_path, streamDefs), 
-    randomize=False, max_sweeps=1)
+                                                             streamDefs),
+                                        randomize=True,
+                                        max_sweeps=C.io.INFINITELY_REPEAT)
+    dev_reader = C.io.MinibatchSource(C.io.CTFDeserializer(dev_file_path, streamDefs),
+                                      randomize=False, max_sweeps=1)
     test_reader = C.io.MinibatchSource(C.io.CTFDeserializer(test_file_path,
-                                                           streamDefs),
-                                      randomize=False,
-                                      max_sweeps=1)
+                                                            streamDefs),
+                                       randomize=False,
+                                       max_sweeps=1)
     model = create_model(y)(x)
     print(model.embed.E.shape)
     print(model.classify.b.value)
     train(train_reader, dev_reader, model, x, y, output_dir)
     evaluate(test_reader, model, x, y)
+
 
 if __name__ == '__main__':
     main()
