@@ -116,6 +116,7 @@ def split(data_file_name,
         all_words).most_common()[unknown_number:]]
     global known_vocabularies
     known_vocabularies = set(vocabs)
+    known_vocabularies.add(UNKNOWN_TOKEN)
     print("[Split dataset]\tWriting to files...")
     with ProcessPoolExecutor() as pool:
         replace_and_write(pool, records[:train_size], os.path.join(
@@ -133,10 +134,11 @@ def split(data_file_name,
 
 
 def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
-    dataset_name = dataset_file_path.strip().split('/')[-1].split('.')[0]
+    output_dir = os.path.dirname(dataset_file_path)
+    dataset_name = os.path.splitext(os.path.basename(dataset_file_path))[0]
     print('[generate_CTF]\tGenerating CTF file for {} set ...'
           .format(dataset_name))
-    output_file = dataset_name + '.ctf'
+    output_file = os.path.join(output_dir, dataset_name + '.ctf')
     os.system(('python /usr/local/cntk/Scripts/txt2ctf.py --map {} {} ' +
                '--annotated True --input {} --output {}')
               .format(
@@ -293,12 +295,13 @@ if __name__ == "__main__":
             description='Generate CNTK Text Format file.'
         )
         parser.add_argument('dataset_file_path', help='path to dataset file')
+        parser.add_argument("vocab_label_dir", help="directory to vocabulary and label files")
         parser.add_argument(
-            '--vocab_file_path', help='path to vocabulary file',
+            '--vocab_file_name', help='path to vocabulary file',
             default='vocabulary.txt'
         )
         parser.add_argument(
-            '--label_file_path', help='path to labels file',
+            '--label_file_name', help='path to labels file',
             default='labels.txt'
         )
 
@@ -306,8 +309,8 @@ if __name__ == "__main__":
 
         generate_CTF(
             args['dataset_file_path'],
-            vocab_file_path=args['vocab_file_path'],
-            label_file_path=args['label_file_path']
+            vocab_file_path=os.path.join(args["vocab_label_dir"], args['vocab_file_name']),
+            label_file_path=os.path.join(args["vocab_label_dir"], args['label_file_name'])
         )
 
     elif len(sys.argv) > 1 and sys.argv[1] == '--plot':

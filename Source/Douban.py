@@ -158,13 +158,13 @@ def main():
     warnings.filterwarnings("ignore")
 
     # dataset file path
-    PATH_TO_DATASET = sys.argv[1]
-    train_file_path = os.path.join(PATH_TO_DATASET, "train.ctf")
-    test_file_path = os.path.join(PATH_TO_DATASET, "test.ctf")
-    vocab_file_path = os.path.join(PATH_TO_DATASET, "vocabulary.txt")
-    label_file_path = os.path.join(PATH_TO_DATASET, "labels.txt")
-    model_file_path = 'DB/binary/Bi_LSTM_Douban.dnn'
-    plain_train_file_path = os.path.join(PATH_TO_DATASET, "train.txt")
+    input_dir = sys.argv[1]
+    output_dir = sys.argv[2]
+    train_file_path = os.path.join(input_dir, "train.ctf")
+    test_file_path = os.path.join(input_dir, "test.ctf")
+    vocab_file_path = os.path.join(input_dir, "vocabulary.txt")
+    label_file_path = os.path.join(input_dir, "labels.txt")
+    plain_train_file_path = os.path.join(input_dir, "train.txt")
 
     # dataset dimensions
     xDim = get_size(vocab_file_path)  # xDim is the size of vocabulary
