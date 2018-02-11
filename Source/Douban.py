@@ -10,6 +10,7 @@ import cntk.device
 import warnings
 import sys
 import pyparsing
+import shutil
 from datetime import datetime
 
 
@@ -39,18 +40,9 @@ def create_model(y):
                 C.layers.LSTM(parameters["hiddenDim"] // 2, activation=C.tanh),
                 C.layers.LSTM(parameters["hiddenDim"] // 2, activation=C.tanh)),
             C.layers.BatchNormalization(),
-            #            BiRecurrence(
-            #                C.layers.LSTM(parameters["hiddenDim"] // 3, activation=C.tanh),
-            #                C.layers.LSTM(parameters["hiddenDim"] // 3, activation=C.tanh)),
-            # C.layers.Recurrence(
-            #     C.layers.GRU(parameters["hiddenDim"] // 2)),
-            # C.layers.Recurrence(
-            #     C.layers.GRU(parameters["hiddenDim"] // 2), go_backwards=True),
-            # C.splice,
-            #            C.layers.BatchNormalization(),
-            #            C.sequence.last,
+            C.sequence.last,
             C.layers.Dense(y.shape, name='classify')
-        ], name="2LayersBiLSTMNoLast")
+        ], name="BiLSTM_with_unk")
 
 
 def create_criterion_function(model, labels):
@@ -59,11 +51,16 @@ def create_criterion_function(model, labels):
     return ce, errs  # (model, labels) -> (loss, error metric)
 
 
-def train(trainReader, testReader, model, x, y, max_epochs=20):
-
+def train(train_reader, dev_reader, model, x, y, output_dir, max_epochs=20):
+    time_name = datetime.now().strftime("%h,%d_%H_%M")
+    log_path = os.path.join(output_dir, time_name)
+    chk_file = os.path.join(log_path, "checkpoint")
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    if not os.path.exists(log_path):
+        os.mkdir(log_path)
+    shutil.copy(sys.argv[0], os.path.join(log_path, sys.argv[0]))
     # Instantiate the model function; x is the input (feature) variable
-    logPath = "log/" + model.name + '/' + datetime.now().strftime("%h,%d_%H_%M")
-    savePath = "model/" + model.name
     # Instantiate the loss and error function
     metric = create_criterion_function(model, y)
     # training config
@@ -97,7 +94,7 @@ def train(trainReader, testReader, model, x, y, max_epochs=20):
         test_freq=500
     )
     tensorboard_writer = C.logging.TensorBoardProgressWriter(
-        freq=10, log_dir=logPath, model=model
+        freq=10, log_dir=log_path, model=model
     )
 
     # Instantiate the trainer
@@ -109,25 +106,25 @@ def train(trainReader, testReader, model, x, y, max_epochs=20):
     # process minibatches and perform model training
     C.logging.log_number_of_parameters(model)
 
-    def inputMap(reader): return {
+    def input_map(reader): return {
         x: reader.streams.sentence,
         y: reader.streams.label
     }
 
-    cvConfig = CrossValidationConfig(
-        minibatch_source=testReader, minibatch_size=minibatch_size,
-        model_inputs_to_streams=inputMap(testReader),
+    cv_config = CrossValidationConfig(
+        minibatch_source=dev_reader, minibatch_size=minibatch_size,
+        model_inputs_to_streams=input_map(dev_reader),
         frequency=epoch_size
     )
 
-    checkpointConfig = CheckpointConfig(
-        savePath, frequency=epoch_size, restore=False)
+    checkpoint_config = CheckpointConfig(
+        chk_file, frequency=epoch_size, restore=False)
 
     training_session(
-        trainer=trainer, mb_source=trainReader, mb_size=minibatch_size,
-        model_inputs_to_streams=inputMap(trainReader),
-        progress_frequency=epoch_size, cv_config=cvConfig,
-        max_samples=epoch_size * max_epochs, checkpoint_config=checkpointConfig
+        trainer=trainer, mb_source=train_reader, mb_size=minibatch_size,
+        model_inputs_to_streams=input_map(train_reader),
+        progress_frequency=epoch_size, cv_config=cv_config,
+        max_samples=epoch_size * max_epochs, checkpoint_config=checkpoint_config
     ).train()
 
 
@@ -162,6 +159,7 @@ def main():
     output_dir = sys.argv[2]
     train_file_path = os.path.join(input_dir, "train.ctf")
     test_file_path = os.path.join(input_dir, "test.ctf")
+    dev_file_path = os.path.join(input_dir, "dev.ctf")
     vocab_file_path = os.path.join(input_dir, "vocabulary.txt")
     label_file_path = os.path.join(input_dir, "labels.txt")
     plain_train_file_path = os.path.join(input_dir, "train.txt")
@@ -185,19 +183,21 @@ def main():
         label=C.io.StreamDef(
             field='S1', shape=yDim, is_sparse=True)
     )
-    trainReader = C.io.MinibatchSource(C.io.CTFDeserializer(train_file_path,
+    train_reader = C.io.MinibatchSource(C.io.CTFDeserializer(train_file_path,
                                                             streamDefs),
                                        randomize=True,
                                        max_sweeps=C.io.INFINITELY_REPEAT)
-    testReader = C.io.MinibatchSource(C.io.CTFDeserializer(test_file_path,
+    dev_reader = C.io.MinibatchSource(C.io.CTFDeserializer(dev_file_path, streamDefs), 
+    randomize=False, max_sweeps=1)
+    test_reader = C.io.MinibatchSource(C.io.CTFDeserializer(test_file_path,
                                                            streamDefs),
                                       randomize=False,
                                       max_sweeps=1)
     model = create_model(y)(x)
     print(model.embed.E.shape)
     print(model.classify.b.value)
-    train(trainReader, testReader, model, x, y)
-
+    train(train_reader, dev_reader, model, x, y, output_dir)
+    evaluate(test_reader, model, x, y)
 
 if __name__ == '__main__':
     main()

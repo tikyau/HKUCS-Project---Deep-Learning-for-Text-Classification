@@ -126,7 +126,7 @@ def split(data_file_name,
         replace_and_write(
             pool, records[train_size + dev_size:], os.path.join(output_dir, test_file_name))
     with open(os.path.join(output_dir, vocab_file_name), "w") as f:
-        f.write("\n".join(vocabs))
+        f.write("\n".join(known_vocabularies))
         f.write("\n")
     with open(os.path.join(output_dir, label_file_name), "w") as f:
         f.write("\n".join(labels))
