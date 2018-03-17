@@ -29,29 +29,34 @@ def BiRecurrence(fwd, bwd):
 
 def create_model(y):
     parameters = {
-        "embDim": 600,
-        "hiddenDim": 300
+        "embDim": 1000,
+        "hiddenDim": 1000
     }
-    with C.layers.default_options(initial_state=0.1):
+    with C.layers.default_options(activation=C.tanh):
         return C.layers.Sequential([
             C.layers.Embedding(parameters["embDim"], name='embed'),
             C.layers.Stabilizer(),
-            BiRecurrence(
-                C.layers.LSTM(parameters["hiddenDim"] // 2, activation=C.tanh),
-                C.layers.LSTM(parameters["hiddenDim"] // 2, activation=C.tanh)),
-            C.layers.BatchNormalization(),
+            C.layers.Recurrence(
+                C.layers.LSTM(parameters["hiddenDim"])
+            ),
             C.sequence.last,
-            C.layers.Dense(y.shape, name='classify')
-        ], name="BiLSTM_with_unk")
+            C.layers.BatchNormalization(),
+            # C.layers.Dense(500, activation=C.tanh),
+            # C.layers.Dropout(0.3),
+            # C.layers.Dense(200, activation=C.tanh),
+            # C.layers.Dropout(0.3),
+            # C.layers.BatchNormalization(),
+            C.layers.Dense(1, activation=None, name='linear_reg')
+        ], name="BiLSTM_linear_reg")
 
 
 def create_criterion_function(model, labels):
-    ce = C.squared_error(C.softmax(model), labels)
-    errs = C.classification_error(model, labels)
+    ce = C.squared_error(model, C.argmax(labels) + 1)
+    errs = C.not_equal(C.round(model), C.argmax(labels) + 1)
     return ce, errs  # (model, labels) -> (loss, error metric)
 
 
-def train_and_test(train_reader, dev_reader, model, x, y, output_dir, max_epochs=20):
+def train_and_test(train_reader, dev_reader, model, x, y, output_dir, train_size, max_epochs=20):
     time_name = datetime.now().strftime("%h,%d_%H_%M")
     log_path = os.path.join(output_dir, time_name)
     chk_file = os.path.join(log_path, "checkpoint")
@@ -64,11 +69,11 @@ def train_and_test(train_reader, dev_reader, model, x, y, output_dir, max_epochs
     # Instantiate the loss and error function
     metric = create_criterion_function(model, y)
     # training config
-    epoch_size = 180000 // 2    # half of training dataset size
-    minibatch_size = 512
+    epoch_size = train_size
+    minibatch_size = 1024
 
     # LR schedule over epochs
-    lr_per_sample = [3e-4] * 4 + [1.5e-4] * 20 + [1e-4]
+    lr_per_sample = [3e-5] * 10 + [1.5e-5] * 20 + [1e-5]
     lr_per_minibatch = [lr * minibatch_size for lr in lr_per_sample]
     lr_schedule = C.learning_rate_schedule(
         lr_per_minibatch,
@@ -77,14 +82,14 @@ def train_and_test(train_reader, dev_reader, model, x, y, output_dir, max_epochs
     )
 
     # Momentum schedule
-    momentum_as_time_constant = C.momentum_as_time_constant_schedule(50)
+    momentum_as_time_constant = C.momentum_as_time_constant_schedule(20)
 
     # Adam optimizer
     learner = C.adam(
         parameters=model.parameters,
         lr=lr_schedule,
         momentum=momentum_as_time_constant,
-        gradient_clipping_threshold_per_sample=5,
+        gradient_clipping_threshold_per_sample=10,
         gradient_clipping_with_truncation=True
     )
 
@@ -114,7 +119,7 @@ def train_and_test(train_reader, dev_reader, model, x, y, output_dir, max_epochs
     cv_config = CrossValidationConfig(
         minibatch_source=dev_reader, minibatch_size=minibatch_size,
         model_inputs_to_streams=input_map(dev_reader),
-        frequency=epoch_size
+        frequency=epoch_size // 2
     )
 
     checkpoint_config = CheckpointConfig(
@@ -172,7 +177,7 @@ def main():
     xDim = get_size(vocab_file_path)  # xDim is the size of vocabulary
     yDim = get_size(label_file_path)  # yDim is the number of labels
     train_size = get_size(plain_train_file_path)
-    C.cntk_py.set_fixed_random_seed(1)
+    # C.cntk_py.set_fixed_random_seed(1)
     print('Vocabulary size :', xDim)
     print('Number of labels:', yDim)
     print("Training size:", train_size)
@@ -192,15 +197,15 @@ def main():
                                         randomize=True,
                                         max_sweeps=C.io.INFINITELY_REPEAT)
     dev_reader = C.io.MinibatchSource(C.io.CTFDeserializer(dev_file_path, streamDefs),
-                                      randomize=False, max_sweeps=1)
+                                      randomize=True, max_sweeps=1)
     test_reader = C.io.MinibatchSource(C.io.CTFDeserializer(test_file_path,
                                                             streamDefs),
-                                       randomize=False,
+                                       randomize=True,
                                        max_sweeps=1)
     model = create_model(y)(x)
     print(model.embed.E.shape)
-    print(model.classify.b.value)
-    train_and_test(train_reader, dev_reader, model, x, y, output_dir)
+    print(model.linear_reg.b.value)
+    train_and_test(train_reader, dev_reader, model, x, y, output_dir, train_size)
     evaluate(test_reader, model, x, y)
 
 
