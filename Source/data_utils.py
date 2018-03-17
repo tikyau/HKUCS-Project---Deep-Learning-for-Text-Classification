@@ -19,7 +19,6 @@ UNKNOWN_TOKEN = "UNKNOWN"
 
 known_vocabularies = set()
 
-
 def is_Chinese_char(c):
     return any(map(lambda x: c >= x[0] and c <= x[1], (
         ('\u4E00', '\u9FFF'),
@@ -42,6 +41,12 @@ def replace(i):
     )
 
 
+def remove(i):
+    return "{}\t{}".format(
+        " ".join(list(filter(lambda x: x in known_vocabularies, i[0]))), i[1]
+    )
+
+
 def build_dataset(
         csv_file_path, data_field, label_field,
         delimiter=',', quotechar='"',
@@ -54,8 +59,7 @@ def build_dataset(
     jieba.enable_parallel(multiprocessing.cpu_count())
 
     print('[build_dataset]\tReading CSV file ...')
-    with open(csv_file_path, 'r', newline='') as f,
-        open(output_file, 'w') as g:
+    with open(csv_file_path, 'r', newline='') as f, open(output_file, 'w') as g:
         reader = csv.DictReader(f, delimiter=delimiter, quotechar=quotechar)
         i = 0
         for row in reader:
@@ -72,9 +76,9 @@ def build_dataset(
     print('[build_dataset]\tCompleted!')
 
 
-def replace_and_write(pool, records, file_name):
+def filter_and_write(pool, records, file_name, func):
     with open(file_name, "w") as f:
-        new_sentences = pool.map(replace, records)
+        new_sentences = filter(lambda x: x[0] != '\t', pool.map(func, records))
         f.write("\n".join(new_sentences))
         f.write("\n")
 
@@ -85,6 +89,7 @@ def split(data_file_name,
           dev_file_name="dev.txt",
           train_ratio=0.8,
           dev_ratio=0.1,
+          remove_unknown=False,
           unknown_number=0,
           output_dir=".",
           vocab_file_name="vocabulary.txt",
@@ -119,17 +124,19 @@ def split(data_file_name,
         all_words).most_common()[unknown_number:]]
     global known_vocabularies
     known_vocabularies = set(vocabs)
-    known_vocabularies.add(UNKNOWN_TOKEN)
+    if not remove_unknown:
+        known_vocabularies.add(UNKNOWN_TOKEN)
     print("[Split dataset]\tWriting to files...")
+    filter_func = remove if remove_unknown else replace
     with ProcessPoolExecutor() as pool:
-        replace_and_write(pool, records[:train_size], os.path.join(
-            output_dir, train_file_name))
-        replace_and_write(
+        filter_and_write(pool, records[:train_size], os.path.join(
+            output_dir, train_file_name), filter_func)
+        filter_and_write(
             pool, records[train_size: train_size + dev_size],
-            os.path.join(output_dir, dev_file_name))
-        replace_and_write(
+            os.path.join(output_dir, dev_file_name), filter_func)
+        filter_and_write(
             pool, records[train_size + dev_size:],
-            os.path.join(output_dir, test_file_name))
+            os.path.join(output_dir, test_file_name), filter_func)
     with open(os.path.join(output_dir, vocab_file_name), "w") as f:
         f.write("\n".join(known_vocabularies))
         f.write("\n")
@@ -155,7 +162,7 @@ def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
 
 def plot_log(
         log_file_path, x_field, y_field, smooth_factor, to_accuracy,
-        x_label, y_label, title, color, transparent, min_x, max_x):
+        x_label, y_label, title, color, transparent, dpi, min_x, max_x):
     def _running_average_smooth(y, window_size):
         kernel = np.ones(window_size) / window_size
         y_pad = np.lib.pad(y, (window_size, ), 'edge')
@@ -179,7 +186,7 @@ def plot_log(
                     x.append(int(row[x_field].strip()))
                 except ValueError:
                     raise ValueError('x-axis value error at line {}: {}'.format(
-                        i, row[x_field].strip()
+                        i + 1, row[x_field].strip()
                     ))
                 try:
                     y.append(
@@ -188,7 +195,7 @@ def plot_log(
                     )
                 except ValueError:
                     raise ValueError('y-axis value error at line {}: {}'.format(
-                        i, row[y_field].strip()
+                        i + 1, row[y_field].strip()
                     ))
 
     x = np.asarray(x)
@@ -210,7 +217,8 @@ def plot_log(
     print('[plot_log]\tSaving figure ...')
 
     plt.savefig(
-        '{}.png'.format(title), bbox_inches='tight', transparent=transparent
+        '{}.png'.format(title.replace(' ', '_')),
+        bbox_inches='tight', transparent=transparent, dpi=dpi
     )
 
 
@@ -286,6 +294,10 @@ if __name__ == "__main__":
             type=str
         )
         parser.add_argument(
+            "--remove_unknown", help="whether to remove unknown words",
+            default=False, type=bool
+        )
+        parser.add_argument(
             "--unknown_number", help="top n words to be labelled as unknown",
             default=0, type=int
         )
@@ -344,6 +356,10 @@ if __name__ == "__main__":
             type=bool, default=False
         )
         parser.add_argument(
+            '--dpi', help='DPI of saved figure file',
+            type=int, default=500
+        )
+        parser.add_argument(
             '--smooth_factor', help='smooth factor',
             type=int, default=9
         )
@@ -373,6 +389,7 @@ if __name__ == "__main__":
             title=args['title'],
             color=args['color'],
             transparent=args['transparent'],
+            dpi=args['dpi'],
             min_x=args['min_x'],
             max_x=args['max_x']
         )
