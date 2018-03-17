@@ -1,10 +1,6 @@
 # Python cached bytecode
 *.pyc
 
-Datasets/Dataset2_Douban*
-
-**/model/
-
-out
-*.out
+**/out
 **/*.out
+
