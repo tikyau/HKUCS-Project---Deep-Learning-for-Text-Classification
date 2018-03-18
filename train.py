@@ -18,13 +18,14 @@ class CTFDataManager(object):
     def __init__(self, **kwargs):
         input_dir = kwargs['input_dir']
         train_file_path = os.path.join(input_dir, kwargs['train_file_name'])
+        train_file_plain = os.path.join(input_dir, kwargs["train_file_plain"])
         test_file_path = os.path.join(input_dir, kwargs['test_file_name'])
         dev_file_path = os.path.join(input_dir, kwargs['dev_file_name'])
         vocab_file_path = os.path.join(input_dir, kwargs['vocab_file_name'])
         label_file_path = os.path.join(input_dir, kwargs['label_file_name'])
         self.x_dim = self._get_size(vocab_file_path)
         self.y_dim = self._get_size(label_file_path)
-        self.train_size = self._get_size(train_file_path)
+        self.train_size = self._get_size(train_file_plain)
         self.x = C.sequence.input_variable(self.x_dim, is_sparse=True)
         self.y = C.input_variable(self.y_dim)
 
