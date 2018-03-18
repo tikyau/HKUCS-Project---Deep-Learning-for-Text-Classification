@@ -16,7 +16,7 @@ def BiRecurrence(fwd, bwd):
 
 class LSTMRegressionWrapper(object):
 
-    def __init__(self, embedding_dim, lstm_hidden_dim,
+    def __init__(self, embedding_dim, lstm_hidden_dim, x_dim, y_dim,
                  name="LSTM_linear_regression"):
         with C.layers.default_options(activation=C.tanh):
             self.model = C.layers.Sequential([
@@ -31,10 +31,31 @@ class LSTMRegressionWrapper(object):
             ], name=name)
         self.metric = None
 
-    def generate_metric(self, labels):
-        loss = C.not_equal(C.round(self.model), C.argmax(labels) + 1)
-        error = C.squared_error(self.model, C.argmax(labels) + 1)
+    def bind(self, x, y):
+        self.model = self.model(x)
+        loss = C.not_equal(C.round(self.model), C.argmax(y) + 1)
+        error = C.squared_error(self.model, C.argmax(y) + 1)
         self.metric = Metric(loss, error)
 
-    def bind(self, x):
+
+class LSTMClassificationWrapper(object):
+    def __init__(self, embedding_dim, lstm_hidden_dim, x_dim, y_dim,
+                 name="LSTM_classification"):
+        with C.layers.default_options(activation=C.tanh):
+            self.model = C.layers.Sequential([
+                C.layers.Embedding(embedding_dim, name='embed'),
+                C.layers.Stabilizer(),
+                C.layers.Recurrence(
+                    C.layers.LSTM(lstm_hidden_dim)
+                ),
+                C.sequence.last,
+                C.layers.BatchNormalization(),
+                C.layers.Dense(y_dim, name='classifier')
+            ], name=name)
+        self.metric = None
+
+    def bind(self, x, y):
         self.model = self.model(x)
+        loss = C.cross_entropy_with_softmax(self.model, y)
+        error = C.classification_error(self.model, y)
+        self.metric = Metric(loss, error)

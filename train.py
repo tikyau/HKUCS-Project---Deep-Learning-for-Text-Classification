@@ -11,7 +11,7 @@ import cntk as C
 from cntk.train.training_session import CrossValidationConfig,\
     training_session, CheckpointConfig, TestConfig
 import cntk.device
-from models import LSTMRegressionWrapper
+from models import *
 
 
 class CTFDataManager(object):
@@ -159,11 +159,11 @@ def get_log_path(output_dir, run_name):
     return log_path
 
 
-def get_model():
-    return LSTMRegressionWrapper(300, 1000)
+def get_model(x_dim, y_dim):
+    return LSTMClassificationWrapper(300, 1000, x_dim=x_dim, y_dim=y_dim)
 
 
-def train_model(args, wrapper):
+def train_model(args):
     output_dir = args['output_dir']
     run_name = args['run_name']
     C.cntk_py.set_fixed_random_seed(1)
@@ -172,9 +172,8 @@ def train_model(args, wrapper):
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
     print("Training size:", data_manager.train_size)
-
-    wrapper.bind(data_manager.x)
-    wrapper.generate_metric(data_manager.y)
+    wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
+    wrapper.bind(data_manager.x, data_manager.y)
     log_path = get_log_path(output_dir, run_name)
 
     train_manager = TrainManager(wrapper, data_manager, log_path)
@@ -222,7 +221,7 @@ def get_args():
 def main():
     cntk.device.try_set_default_device(cntk.device.gpu(0))
     args = get_args()
-    train_model(args, get_model())
+    train_model(args)
 
 
 if __name__ == '__main__':
