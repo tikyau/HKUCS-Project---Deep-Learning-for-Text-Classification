@@ -56,9 +56,15 @@ def create_criterion_function(model, labels):
     return ce, errs  # (model, labels) -> (loss, error metric)
 
 
-def train_and_test(train_reader, dev_reader, model, x, y, output_dir, train_size, max_epochs=20):
+def train_and_test(
+        run_name,
+        train_reader, dev_reader,
+        model, x, y,
+        output_dir, train_size, max_epochs=20
+    ):
     time_name = datetime.now().strftime("%h,%d_%H_%M")
-    log_path = os.path.join(output_dir, time_name)
+    run_name = run_name + '_' if run_name != '' else ''
+    log_path = os.path.join(output_dir, run_name + time_name)
     chk_file = os.path.join(log_path, "checkpoint")
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
@@ -160,18 +166,57 @@ def evaluate(reader, model, x, y):
 
 
 def main():
+    import argparse
+
     cntk.device.try_set_default_device(cntk.device.gpu(0))
-    warnings.filterwarnings("ignore")
+    warnings.filterwarnings('ignore')
+
+    parser = argparse.ArgumentParser(description='Train and test.')
+
+    parser.add_argument('input_dir', help='Directory containing the dataset')
+    parser.add_argument('output_dir', help='Directory to store logs etc.')
+
+    parser.add_argument(
+        '--train_file_name', help='Name of training set CTF file',
+        default='train.ctf'
+    )
+    parser.add_argument(
+        '--test_file_name', help='Name of testing set CTF file',
+        default='test.ctf'
+    )
+    parser.add_argument(
+        '--dev_file_name', help='Name of dev set CTF file',
+        default="dev.ctf"
+    )
+    parser.add_argument(
+        '--vocab_file_name', help='Name of vocabulary file',
+        default='vocabulary.txt'
+    )
+    parser.add_argument(
+        '--label_file_name', help='Name of label file',
+        default='labels.txt'
+    )
+    parser.add_argument(
+        '--train_file_plain', help='Name of training set plain file',
+        default='train.txt'
+    )
+    parser.add_argument(
+        '--run_name', help='Name of current run',
+        default='run'
+    )
+
+    args = vars(parser.parse_args(sys.argv[1:]))
 
     # dataset file path
-    input_dir = sys.argv[1]
-    output_dir = sys.argv[2]
-    train_file_path = os.path.join(input_dir, "train.ctf")
-    test_file_path = os.path.join(input_dir, "test.ctf")
-    dev_file_path = os.path.join(input_dir, "dev.ctf")
-    vocab_file_path = os.path.join(input_dir, "vocabulary.txt")
-    label_file_path = os.path.join(input_dir, "labels.txt")
-    plain_train_file_path = os.path.join(input_dir, "train.txt")
+    input_dir = args['input_dir']
+    output_dir = args['output_dir']
+    run_name = args['run_name']
+    train_file_path = os.path.join(input_dir, args['train_file_name'])
+    test_file_path = os.path.join(input_dir, args['test_file_name'])
+    dev_file_path = os.path.join(input_dir, args['dev_file_name'])
+    vocab_file_path = os.path.join(input_dir, args['vocab_file_name'])
+    label_file_path = os.path.join(input_dir, args['label_file_name'])
+    plain_train_file_path = os.path.join(input_dir, args['train_file_plain'])
 
     # dataset dimensions
     xDim = get_size(vocab_file_path)  # xDim is the size of vocabulary
@@ -205,7 +250,14 @@ def main():
     model = create_model(y)(x)
     print(model.embed.E.shape)
     print(model.linear_reg.b.value)
-    train_and_test(train_reader, dev_reader, model, x, y, output_dir, train_size)
+
+    train_and_test(
+        run_name,
+        train_reader, dev_reader,
+        model, x, y,
+        output_dir, train_size
+    )
+
     evaluate(test_reader, model, x, y)
 
 
