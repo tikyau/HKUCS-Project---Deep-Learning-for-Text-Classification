@@ -14,12 +14,12 @@ def BiRecurrence(fwd, bwd):
     return apply_x
 
 
-class LSTMRegression(object):
+class LSTMRegressionWrapper(object):
 
     def __init__(self, embedding_dim, lstm_hidden_dim,
-                 name="LSTM_linear_regression", **kwargs):
+                 name="LSTM_linear_regression"):
         with C.layers.default_options(activation=C.tanh):
-            self._model = C.layers.Sequential([
+            self.model = C.layers.Sequential([
                 C.layers.Embedding(embedding_dim, name='embed'),
                 C.layers.Stabilizer(),
                 C.layers.Recurrence(
@@ -29,11 +29,12 @@ class LSTMRegression(object):
                 C.layers.BatchNormalization(),
                 C.layers.Dense(1, activation=None, name='linear_reg')
             ], name=name)
+        self.metric = None
 
-    def get_model(self):
-        return self._model
+    def generate_metric(self, labels):
+        loss = C.not_equal(C.round(self.model), C.argmax(labels) + 1)
+        error = C.squared_error(self.model, C.argmax(labels) + 1)
+        self.metric = Metric(loss, error)
 
-    def get_metric(self, labels):
-        loss = C.not_equal(C.round(self._model), C.argmax(labels) + 1)
-        error = C.squared_error(self._model, C.argmax(labels) + 1)
-        return Metric(loss, error)
+    def bind(self, x, y):
+        self.model = self.model(y)(x)
