@@ -19,6 +19,7 @@ UNKNOWN_TOKEN = "UNKNOWN"
 
 known_vocabularies = set()
 
+
 def is_Chinese_char(c):
     return any(map(lambda x: c >= x[0] and c <= x[1], (
         ('\u4E00', '\u9FFF'),
@@ -89,6 +90,7 @@ def split(data_file_name,
           dev_file_name="dev.txt",
           train_ratio=0.8,
           dev_ratio=0.1,
+          max_size=0,
           remove_unknown=False,
           unknown_number=0,
           output_dir=".",
@@ -106,8 +108,10 @@ def split(data_file_name,
             records[label].append(sentence.split())
     print("[Split dataset]\tBuilding vocabulary...")
     labels = records.keys()
-    if even:
+    if even or max_size:
         min_size = min(map(lambda x: len(x), records.values()))
+        if max_size:
+            min_size = min(max_size, min_size)
         records = list(itertools.chain.from_iterable(
             [(i, label) for i in records[label][:min_size]]
             for label in records.keys()))
@@ -299,6 +303,10 @@ if __name__ == "__main__":
         )
         parser.add_argument(
             "--unknown_number", help="top n words to be labelled as unknown",
+            default=0, type=int
+        )
+        parser.add_argument(
+            "--max_size", help="maximum number of data from each label",
             default=0, type=int
         )
         args = vars(parser.parse_args(sys.argv[2:]))
