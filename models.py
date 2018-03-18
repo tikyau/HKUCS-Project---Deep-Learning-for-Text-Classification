@@ -36,5 +36,5 @@ class LSTMRegressionWrapper(object):
         error = C.squared_error(self.model, C.argmax(labels) + 1)
         self.metric = Metric(loss, error)
 
-    def bind(self, x, y):
-        self.model = self.model(y)(x)
+    def bind(self, x):
+        self.model = self.model(x)

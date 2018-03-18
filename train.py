@@ -138,10 +138,10 @@ def save_config(output_dir, log_path, wrapper, train_manager, args):
         os.mkdir(output_dir)
     if not os.path.exists(log_path):
         os.mkdir(log_path)
-    wrapper_code = inspect.getsource(wrapper)
-    train_manager_code = inspect.getsource(train_manager)
+    wrapper_code = inspect.getsource(wrapper.__class__)
+    train_manager_code = inspect.getsource(train_manager.__class__)
     parameter_code = inspect.getsource(get_model)
-    with open(os.path.join(log_path, "config", "w"), "w") as f:
+    with open(os.path.join(log_path, "config"), "w") as f:
         f.write("hyperparameters:\n\n")
         f.write(parameter_code)
         f.write("model:\n\n")
@@ -173,7 +173,7 @@ def train_model(args, wrapper):
     print('Number of labels:', data_manager.y_dim)
     print("Training size:", data_manager.train_size)
 
-    wrapper.bind(data_manager.x, data_manager.y)
+    wrapper.bind(data_manager.x)
     wrapper.generate_metric(data_manager.y)
     log_path = get_log_path(output_dir, run_name)
 
