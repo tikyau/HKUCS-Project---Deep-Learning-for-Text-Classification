@@ -11,7 +11,7 @@ import cntk as C
 from cntk.train.training_session import CrossValidationConfig,\
     training_session, CheckpointConfig, TestConfig
 import cntk.device
-from models import *
+from models import LSTMClassificationWrapper
 
 
 class CTFDataManager(object):
@@ -27,7 +27,7 @@ class CTFDataManager(object):
         self.y_dim = self._get_size(label_file_path)
         self.train_size = self._get_size(train_file_plain)
         self.x = C.sequence.input_variable(self.x_dim, is_sparse=True)
-        self.y = C.input_variable(self.y_dim)
+        self.y = C.input_variable(self.y_dim, is_sparse=True)
 
         streamDefs = C.io.StreamDefs(
             sentence=C.io.StreamDef(
