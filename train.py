@@ -11,7 +11,7 @@ import cntk as C
 from cntk.train.training_session import CrossValidationConfig,\
     training_session, CheckpointConfig, TestConfig
 import cntk.device
-from models import LSTMClassificationWrapper
+from models import LSTMClassificationWrapper, LSTMRegressionWrapper
 
 
 class CTFDataManager(object):
@@ -24,7 +24,7 @@ class CTFDataManager(object):
         vocab_file_path = os.path.join(input_dir, kwargs['vocab_file_name'])
         label_file_path = os.path.join(input_dir, kwargs['label_file_name'])
         self.x_dim = self._get_size(vocab_file_path)
-        self.y_dim = self._get_size(label_file_path)
+        self.y_dim = 1  # self._get_size(label_file_path)
         self.train_size = self._get_size(train_file_plain)
         self.x = C.sequence.input_variable(self.x_dim, is_sparse=True)
         self.y = C.input_variable(self.y_dim, is_sparse=True)
@@ -160,7 +160,7 @@ def get_log_path(output_dir, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMClassificationWrapper(300, 1000, x_dim=x_dim, y_dim=y_dim)
+    return LSTMRegressionWrapper(300, 1000, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(args):
