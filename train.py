@@ -159,7 +159,7 @@ def get_log_path(output_dir, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMRegressionWrapper(300, 1000, x_dim=x_dim, y_dim=y_dim)
+    return LSTMClassificationWrapper(300, 1000, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(args):
@@ -174,7 +174,7 @@ def train_model(args):
     wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
     wrapper.bind(data_manager.x, data_manager.y)
     run_name = run_name or "{}_{}".format(
-        os.path.split(input_dir)[1], wrapper.name)
+        os.path.split(args["input_dir"])[1], wrapper.name)
     log_path = get_log_path(output_dir, run_name)
 
     train_manager = TrainManager(wrapper, data_manager, log_path)

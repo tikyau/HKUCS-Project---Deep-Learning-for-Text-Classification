@@ -27,7 +27,7 @@ class LSTMRegressionWrapper(object):
                 ),
                 C.sequence.last,
                 C.layers.BatchNormalization(),
-                C.layers.Dense(1, activation=C.sigmoid)
+                C.layers.Dense(1, activation=None)
             ], name=name)
             self.y_dim = y_dim
             self.name = name
@@ -35,8 +35,8 @@ class LSTMRegressionWrapper(object):
 
     def bind(self, x, y):
         self.model = self.model(x)
-        loss = C.squared_error(self.model * self.y_dim, C.argmax(y))
-        error = C.not_equal(C.round(self.model * self.y_dim), C.argmax(y))
+        loss = C.squared_error(self.model, C.argmax(y))
+        error = C.not_equal(C.round(self.model), C.argmax(y))
         self.metric = Metric(loss, error)
 
 
