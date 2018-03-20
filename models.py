@@ -62,3 +62,28 @@ class LSTMClassificationWrapper(object):
         loss = C.cross_entropy_with_softmax(self.model, y)
         error = C.classification_error(self.model, y)
         self.metric = Metric(loss, error)
+
+
+class YAClassificationWrapper(object):
+    def __init__(self, embedding_dim, lstm_hidden_dim, x_dim, y_dim,
+                 name="yet_another_classifier"):
+        self.model = C.layers.Sequential([
+            C.layers.Embedding(embedding_dim),
+            C.layers.Recurrence(
+                C.layers.LSTM(hidden_dim)
+            ),
+            C.layers.Dropout(0.75),
+            C.layers.Recurrence(
+                C.layers.LSTM(hidden_dim)
+            ),
+            C.layers.BatchNormalization(),
+            C.layers.Dense((y_dim, ))
+        ])
+        self.metric = None
+        self.name
+
+    def bind(self, x, y):
+        self.model = self.model(x)
+        loss = C.cross_entropy_with_softmax(self.model, y)
+        error = C.classification_error(self.model, y)
+        self.metric = Metric(loss, error)
