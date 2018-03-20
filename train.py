@@ -2,6 +2,7 @@ from __future__ import (absolute_import, division, print_function)
 import os
 import sys
 from datetime import datetime
+import signal
 import argparse
 import inspect
 import json
@@ -158,7 +159,7 @@ def get_model(x_dim, y_dim):
     return LSTMClassificationWrapper(128, 128, x_dim=x_dim, y_dim=y_dim)
 
 
-def train_model(args, log_path):
+def train_model(args):
 
     C.cntk_py.set_fixed_random_seed(1)
     data_manager = CTFDataManager(**args)
@@ -166,7 +167,18 @@ def train_model(args, log_path):
     wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
     wrapper.bind(data_manager.x, data_manager.y)
 
+    output_dir = args['output_dir']
+    run_name = args['run_name']
+    run_name = run_name or "{}_{}".format(
+        os.path.basename(os.path.normpath(args["input_dir"])), wrapper.name)
+    log_path = get_log_path(output_dir, run_name)
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    if not os.path.exists(log_path):
+        os.mkdir(log_path)
+    setup_logger(log_path)
     train_manager = TrainManager(wrapper, data_manager, log_path)
+
     save_config(log_path, wrapper, train_manager, args)
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
@@ -212,7 +224,7 @@ def get_args():
 
 
 def setup_logger(log_path):
-    if os.getpgrp() != os.tcgetpgrp(sys.stdout.fileno()):
+    if signal.getsignal(signal.SIGHUP) != signal.SIG_DFL:
         sys.stdout = open(os.path.join(log_path, "run.log"), "a")
         sys.stderr = sys.stdout
 
@@ -220,17 +232,7 @@ def setup_logger(log_path):
 def main():
     cntk.device.try_set_default_device(cntk.device.gpu(0))
     args = get_args()
-    output_dir = args['output_dir']
-    run_name = args['run_name']
-    run_name = run_name or "{}_{}".format(
-        os.path.basename(os.path.normpath(args["input_dir"])), wrapper.name)
-    log_path = get_log_path(output_dir, run_name)
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    if not os.path.exists(log_path):
-        os.mkdir(log_path)
-    setup_logger(log_path)
-    train_model(args, log_path)
+    train_model(args)
 
 
 if __name__ == '__main__':
