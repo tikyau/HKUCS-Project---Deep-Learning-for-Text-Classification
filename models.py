@@ -27,15 +27,16 @@ class LSTMRegressionWrapper(object):
                 ),
                 C.sequence.last,
                 C.layers.BatchNormalization(),
-                C.layers.Dense(y_dim, activation=C.sigmoid,
+                C.layers.Dense(1, activation=C.sigmoid,
                                name='sigmoid_linear_reg')
             ], name=name)
+            self.y_dim = y_dim
         self.metric = None
 
     def bind(self, x, y):
         self.model = self.model(x)
-        loss = C.squared_error(self.model * 5 + 1, y)
-        error = C.not_equal(C.round(self.model * 5 + 1), y)
+        loss = C.squared_error(self.model * self.y_dim, C.argmax(y))
+        error = C.not_equal(C.round(self.model * self.y_dim), C.argmax(y))
         self.metric = Metric(loss, error)
 
 
