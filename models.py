@@ -27,10 +27,10 @@ class LSTMRegressionWrapper(object):
                 ),
                 C.sequence.last,
                 C.layers.BatchNormalization(),
-                C.layers.Dense(1, activation=C.sigmoid,
-                               name='sigmoid_linear_reg')
+                C.layers.Dense(1, activation=C.sigmoid)
             ], name=name)
             self.y_dim = y_dim
+            self.name = name
         self.metric = None
 
     def bind(self, x, y):
@@ -52,9 +52,10 @@ class LSTMClassificationWrapper(object):
                 ),
                 C.sequence.last,
                 C.layers.BatchNormalization(),
-                C.layers.Dense(y_dim, name='classifier')
+                C.layers.Dense(y_dim)
             ], name=name)
         self.metric = None
+        self.name = name
 
     def bind(self, x, y):
         self.model = self.model(x)

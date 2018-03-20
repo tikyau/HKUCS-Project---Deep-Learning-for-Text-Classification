@@ -154,8 +154,7 @@ def save_config(output_dir, log_path, wrapper, train_manager, args):
 
 def get_log_path(output_dir, run_name):
     time_name = datetime.now().strftime("%h,%d_%H_%M")
-    run_name = run_name + '_' if run_name != '' else ''
-    log_path = os.path.join(output_dir, run_name + time_name)
+    log_path = os.path.join(output_dir, "{}_{}".format(run_name, time_name))
     return log_path
 
 
@@ -174,6 +173,8 @@ def train_model(args):
     print("Training size:", data_manager.train_size)
     wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
     wrapper.bind(data_manager.x, data_manager.y)
+    run_name = run_name or "{}_{}".format(
+        os.path.split(input_dir)[1], wrapper.name)
     log_path = get_log_path(output_dir, run_name)
 
     train_manager = TrainManager(wrapper, data_manager, log_path)
@@ -212,8 +213,8 @@ def get_args():
         default='train.txt'
     )
     parser.add_argument(
-        '--run_name', help='Name of current run',
-        default='run'
+        '--run_name', help='Name of current run, default input_dir+model',
+        default=''
     )
     return vars(parser.parse_args(sys.argv[1:]))
 
