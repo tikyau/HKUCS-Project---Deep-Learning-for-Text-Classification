@@ -132,11 +132,8 @@ class TrainManager(object):
         )
 
 
-def save_config(output_dir, log_path, wrapper, train_manager, args):
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    if not os.path.exists(log_path):
-        os.mkdir(log_path)
+def save_config(log_path, wrapper, train_manager, args):
+
     wrapper_code = inspect.getsource(wrapper.__class__)
     train_manager_code = inspect.getsource(train_manager.__class__)
     parameter_code = inspect.getsource(get_model)
@@ -161,23 +158,19 @@ def get_model(x_dim, y_dim):
     return LSTMClassificationWrapper(128, 128, x_dim=x_dim, y_dim=y_dim)
 
 
-def train_model(args):
-    output_dir = args['output_dir']
-    run_name = args['run_name']
+def train_model(args, log_path):
+
     C.cntk_py.set_fixed_random_seed(1)
     data_manager = CTFDataManager(**args)
 
+    wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
+    wrapper.bind(data_manager.x, data_manager.y)
+
+    train_manager = TrainManager(wrapper, data_manager, log_path)
+    save_config(log_path, wrapper, train_manager, args)
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
     print("Training size:", data_manager.train_size)
-    wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
-    wrapper.bind(data_manager.x, data_manager.y)
-    run_name = run_name or "{}_{}".format(
-        os.path.basename(os.path.normpath(args["input_dir"])), wrapper.name)
-    log_path = get_log_path(output_dir, run_name)
-
-    train_manager = TrainManager(wrapper, data_manager, log_path)
-    save_config(output_dir, log_path, wrapper, train_manager, args)
     train_manager.session.train()
 
 
@@ -218,10 +211,26 @@ def get_args():
     return vars(parser.parse_args(sys.argv[1:]))
 
 
+def setup_logger(log_path):
+    if os.getpgrp() != os.tcgetpgrp(sys.stdout.fileno()):
+        sys.stdout = open(os.path.join(log_path, "run.log"), "a")
+        sys.stderr = sys.stdout
+
+
 def main():
     cntk.device.try_set_default_device(cntk.device.gpu(0))
     args = get_args()
-    train_model(args)
+    output_dir = args['output_dir']
+    run_name = args['run_name']
+    run_name = run_name or "{}_{}".format(
+        os.path.basename(os.path.normpath(args["input_dir"])), wrapper.name)
+    log_path = get_log_path(output_dir, run_name)
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    if not os.path.exists(log_path):
+        os.mkdir(log_path)
+    setup_logger(log_path)
+    train_model(args, log_path)
 
 
 if __name__ == '__main__':

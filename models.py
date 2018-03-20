@@ -70,11 +70,11 @@ class YAClassificationWrapper(object):
         self.model = C.layers.Sequential([
             C.layers.Embedding(embedding_dim),
             C.layers.Recurrence(
-                C.layers.LSTM(hidden_dim)
+                C.layers.LSTM(lstm_hidden_dim)
             ),
             C.layers.Dropout(0.75),
             C.layers.Recurrence(
-                C.layers.LSTM(hidden_dim)
+                C.layers.LSTM(lstm_hidden_dim)
             ),
             C.layers.BatchNormalization(),
             C.layers.Dense((y_dim, ))
