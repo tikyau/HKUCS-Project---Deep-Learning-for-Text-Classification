@@ -1,5 +1,4 @@
 from __future__ import (absolute_import, division, print_function)
-
 import os
 import sys
 from datetime import datetime
@@ -27,7 +26,7 @@ class CTFDataManager(object):
         self.y_dim = self._get_size(label_file_path)
         self.train_size = self._get_size(train_file_plain)
         self.x = C.sequence.input_variable(self.x_dim, is_sparse=True)
-        self.y = C.input_variable(self.y_dim, is_sparse=True)
+        self.y = C.input_variable(self.y_dim)
 
         streamDefs = C.io.StreamDefs(
             sentence=C.io.StreamDef(
@@ -64,7 +63,7 @@ class CTFDataManager(object):
 
 class TrainManager(object):
     def __init__(self, model_wrapper, data_manager, log_path,
-                 minibatch_size=1024, max_epochs=20):
+                 minibatch_size=128, max_epochs=20):
         self.epoch_size = data_manager.train_size
         self.minibatch_size = minibatch_size
         self.dev_reader = data_manager.dev_reader
@@ -159,7 +158,7 @@ def get_log_path(output_dir, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMClassificationWrapper(300, 1000, x_dim=x_dim, y_dim=y_dim)
+    return LSTMClassificationWrapper(128, 128, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(args):
