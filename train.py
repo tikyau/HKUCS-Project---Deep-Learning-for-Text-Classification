@@ -174,7 +174,7 @@ def train_model(args):
     wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
     wrapper.bind(data_manager.x, data_manager.y)
     run_name = run_name or "{}_{}".format(
-        os.path.split(args["input_dir"])[1], wrapper.name)
+        os.path.basename(os.path.normpath(args["input_dir"])), wrapper.name)
     log_path = get_log_path(output_dir, run_name)
 
     train_manager = TrainManager(wrapper, data_manager, log_path)
