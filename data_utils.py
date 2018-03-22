@@ -1,5 +1,6 @@
 from __future__ import (absolute_import, division, print_function)
 
+from concurrent.futures import ProcessPoolExecutor
 from random import shuffle
 import multiprocessing
 import collections
@@ -11,12 +12,12 @@ import sys
 import argparse
 
 import numpy as np
-import matplotlib.pyplot as plt
+
 import jieba
 from snownlp import SnowNLP
 
 UNKNOWN_TOKEN = "UNKNOWN"
-IGNORED_CHAR = set([" ", "\t", "…", "“", "”"])
+IGNORED_CHAR = set(["\t", "…", "“", "”"])
 
 
 def is_Chinese_char(c):
@@ -34,8 +35,9 @@ def is_Chinese_char(c):
 
 def segment(sentence):
     words = jieba.cut(SnowNLP(sentence).han)
-    valid_words = list(filter(lambda x: x and all(
-        is_Chinese_char, x) and all(lambda y: y not in IGNORED_CHAR, x), words))
+    valid_words = list(filter(lambda x: x and all(map(
+        lambda y: is_Chinese_char(y) and y not in IGNORED_CHAR and not y.isspace(), x)),
+                              words))
     del words
     return valid_words
 
@@ -62,19 +64,25 @@ def read_csv(ignored_labels, csv_file, label_field, data_field):
     with open(csv_file, "r", newline="") as f:
         reader = csv.DictReader(f, delimiter=',', quotechar='"')
         for row in reader:
-            if row[label_field] not in ignored_labels:
-                sentences[row[label_field]].append(row[data_field])
+            if row[label_field] not in ignored_labels and row[data_field].strip():
+                sentences[row[label_field]].append(row[data_field].strip())
     return sentences
 
 
 def to_ctf(output_dir, prefix, vocab_file, label_file):
     input_file = os.path.join(output_dir, prefix + ".txt")
     output_file = os.path.join(output_dir, prefix + ".ctf")
+    vocab_file = os.path.join(output_dir, vocab_file)
+    label_file = os.path.join(output_dir, label_file)
     os.system(('python /usr/local/cntk/Scripts/txt2ctf.py --map {} {} ' +
                '--annotated True --input {} --output {}')
               .format(
         vocab_file, label_file,
         input_file, output_file))
+
+
+def build_tuple(sentence):
+    return (sentence, segment(sentence))
 
 
 def build_dataset(csv_file, data_field, label_field,
@@ -88,7 +96,7 @@ def build_dataset(csv_file, data_field, label_field,
                   vocab_file="vocabulary.txt",
                   label_file="labels.txt", ignored_labels="",
                   even=False, ctf=True):
-    jieba.enable_parallel(multiprocessing.cpu_count())
+#    jieba.enable_parallel(multiprocessing.cpu_count())
     assert(train_ratio + dev_ratio < 1)
     print("[build]\treading CSV file...")
     sentences = read_csv(ignored_labels, csv_file, label_field, data_field)
@@ -102,10 +110,13 @@ def build_dataset(csv_file, data_field, label_field,
     labels = sentences.keys()
 
     print("[build] segmenting dataset...")
-    records = list(itertools.chain.from_iterable(
-        [[(sentence, segment(sentence), label) for sentence in sentences[label]]
-         for label in sentences.keys()]))
-    del sentences
+    records = []
+    with ProcessPoolExecutor() as pool:
+        for label in sentences:
+            print("[build] segmeting sentences from {}...".format(label))
+            sentences_in_label = pool.map(build_tuple, sentences[label])
+            records.extend((i[0], i[1], label) for i in sentences_in_label)
+        del sentences
     print("[build] splitting to train/dev/test set...")
     shuffle(records)
     train_size = int(len(records) * train_ratio)
@@ -150,6 +161,7 @@ def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
 def plot_log(
         log_file_path, x_field, y_field, smooth_factor, to_accuracy,
         x_label, y_label, title, color, transparent, dpi, min_x, max_x):
+    import matplotlib.pyplot as plt
     def _running_average_smooth(y, window_size):
         kernel = np.ones(window_size) / window_size
         y_pad = np.lib.pad(y, (window_size, ), 'edge')
@@ -226,7 +238,7 @@ if __name__ == "__main__":
             ("train_ratio", "", 0.8, float),
             ("dev_ratio", "", 0.1, float),
             ("vocab_file", "filename for vocabulary", "vocabulary.txt", str),
-            ("label_file", "filename for labels", "label.txt", str),
+            ("label_file", "filename for labels", "labels.txt", str),
             ("max_size", "maximum number of entries from each label", 0, int),
 
             ("ignored_labels", "labels to be ignored", "", str),
@@ -240,14 +252,19 @@ if __name__ == "__main__":
 
         args = vars(parser.parse_args(sys.argv[2:]))
 
+        csv_file = args["csv_file"]
+        data_field = args["data_field"]
+        label_field = args["label_field"]
+        output_dir = args["output_dir"]
+        pargs = []
+        for i in POSITIONALS:
+            pargs.append(args[i[0]])
+            del args[i[0]]
         build_dataset(
-            args['csv_file_path'],
-            args['data_field'],
-            args['label_field'],
-            args["output_dir"],
+            *pargs,
             **args
         )
-        with open(os.path.join(args["output_dir"], "build.conf"), "w") as f:
+        with open(os.path.join(pargs[-1], "build.conf"), "w") as f:
             json.dump(args, f)
 
     elif len(sys.argv) > 1 and sys.argv[1] == 'ctf':
