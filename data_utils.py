@@ -1,23 +1,22 @@
 from __future__ import (absolute_import, division, print_function)
 
-from functools import reduce
 from random import shuffle
-from concurrent.futures import ProcessPoolExecutor
 import multiprocessing
+import collections
 import itertools
 import os
-import collections
 import csv
 import json
 import sys
+import argparse
+
 import numpy as np
 import matplotlib.pyplot as plt
-
 import jieba
+from snownlp import SnowNLP
 
 UNKNOWN_TOKEN = "UNKNOWN"
-
-known_vocabularies = set()
+IGNORED_CHAR = set([" ", "\t", "…", "“", "”"])
 
 
 def is_Chinese_char(c):
@@ -33,120 +32,104 @@ def is_Chinese_char(c):
     )))
 
 
-def replace(i):
-    return "{}\t{}".format(
-        " ".join(
-            list(map(lambda x: x if x in known_vocabularies else UNKNOWN_TOKEN,
-                     i[0]))),
-        i[1]
-    )
+def segment(sentence):
+    words = jieba.cut(SnowNLP(sentence).han)
+    valid_words = list(filter(lambda x: x and all(
+        is_Chinese_char, x) and all(lambda y: y not in IGNORED_CHAR, x), words))
+    del words
+    return valid_words
 
 
-def remove(i):
-    return "{}\t{}".format(
-        " ".join(list(filter(lambda x: x in known_vocabularies, i[0]))), i[1]
-    )
+def write_to_file(path, data):
+    with open(path + ".raw", "w") as raw, open(path + ".txt", "w") as txt:
+        for sentence, words, label in data:
+            raw.write("{}\t{}\n".format(sentence, label))
+            txt.write("{}\t{}\n".format(" ".join(words), label))
 
 
-def build_dataset(
-        csv_file_path, data_field, label_field,
-        delimiter=',', quotechar='"',
-        output_file="data.txt",
-        report_freq=100,
-        segmnt_func=jieba.cut,
-        filter_func=is_Chinese_char,
-        unknown_number=0):
-
-    jieba.enable_parallel(multiprocessing.cpu_count())
-
-    print('[build_dataset]\tReading CSV file ...')
-    with open(csv_file_path, 'r', newline='') as f, open(output_file, 'w') as g:
-        reader = csv.DictReader(f, delimiter=delimiter, quotechar=quotechar)
-        i = 0
-        for row in reader:
-            sentence = list(filter(
-                lambda x: x and filter_func(x) and not x.isspace(),
-                segmnt_func(row[data_field].strip())
-            ))
-            if sentence:
-                g.write("{}\t{}\n".format(
-                    ' '.join(sentence), row[label_field]))
-                i += 1
-            if i % report_freq == 0:
-                print("[build_dataset]\tProcessing line #{} ...".format(i + 1))
-    print('[build_dataset]\tCompleted!')
+def replace_unknown(known_vocabs, records, train_size):
+    print("[build]replacing unknown token...")
+    for i in range(train_size, len(records)):
+        sentence, words, label = records[i]
+        words = list(
+            map(lambda x: x if x in known_vocabs else UNKNOWN_TOKEN, words))
+        records[i] = (sentence, words, label)
 
 
-def filter_and_write(pool, records, file_name, func):
-    with open(file_name, "w") as f:
-        new_sentences = filter(lambda x: x[0] != '\t', pool.map(func, records))
-        f.write("\n".join(new_sentences))
-        f.write("\n")
-
-
-def split(data_file_name,
-          train_file_name="train.txt",
-          test_file_name="test.txt",
-          dev_file_name="dev.txt",
-          train_ratio=0.8,
-          dev_ratio=0.1,
-          max_size=0,
-          remove_unknown=False,
-          unknown_number=0,
-          output_dir=".",
-          vocab_file_name="vocabulary.txt",
-          label_file_name="labels.txt", ignored_labels="", even=False):
-    assert(train_ratio + dev_ratio < 1)
+def read_csv(ignored_labels, csv_file, label_field, data_field):
+    sentences = collections.defaultdict(list)
     ignored_labels = set(ignored_labels.split(','))
-    records = collections.defaultdict(list)
-    print("[Split dataset]\tReading from file...")
-    with open(data_file_name, 'r') as f:
-        for line in f:
-            sentence, label = line[:-1].split('\t')
-            if label in ignored_labels:
-                continue
-            records[label].append(sentence.split())
-    print("[Split dataset]\tBuilding vocabulary...")
-    labels = records.keys()
+    with open(csv_file, "r", newline="") as f:
+        reader = csv.DictReader(f, delimiter=',', quotechar='"')
+        for row in reader:
+            if row[label_field] not in ignored_labels:
+                sentences[row[label_field]].append(row[data_field])
+    return sentences
+
+
+def to_ctf(output_dir, prefix, vocab_file, label_file):
+    input_file = os.path.join(output_dir, prefix + ".txt")
+    output_file = os.path.join(output_dir, prefix + ".ctf")
+    os.system(('python /usr/local/cntk/Scripts/txt2ctf.py --map {} {} ' +
+               '--annotated True --input {} --output {}')
+              .format(
+        vocab_file, label_file,
+        input_file, output_file))
+
+
+def build_dataset(csv_file, data_field, label_field,
+                  output_dir,
+                  train_prefix="train",
+                  test_prefix="test",
+                  dev_prefix="dev",
+                  train_ratio=0.8,
+                  dev_ratio=0.1,
+                  max_size=0,
+                  vocab_file="vocabulary.txt",
+                  label_file="labels.txt", ignored_labels="",
+                  even=False, ctf=True):
+    jieba.enable_parallel(multiprocessing.cpu_count())
+    assert(train_ratio + dev_ratio < 1)
+    print("[build]\treading CSV file...")
+    sentences = read_csv(ignored_labels, csv_file, label_field, data_field)
     if even or max_size:
-        min_size = min(map(lambda x: len(x), records.values()))
+        print("[build] truncating number of sentences from each label...")
+        size = min(map(lambda x: len(x), sentences.values()))
         if max_size:
-            min_size = min(max_size, min_size)
-        records = list(itertools.chain.from_iterable(
-            [(i, label) for i in records[label][:min_size]]
-            for label in records.keys()))
-    else:
-        records = list(itertools.chain.from_iterable(
-            [(i, label) for i in records[label]]
-            for label in records.keys()))
+            size = min(max_size, size)
+        for label in sentences:
+            sentences[label] = sentences[label][:size]
+    labels = sentences.keys()
+
+    print("[build] segmenting dataset...")
+    records = list(itertools.chain.from_iterable(
+        [[(sentence, segment(sentence), label) for sentence in sentences[label]]
+         for label in sentences.keys()]))
+    del sentences
+    print("[build] splitting to train/dev/test set...")
     shuffle(records)
     train_size = int(len(records) * train_ratio)
     dev_size = int(len(records) * dev_ratio)
-    all_words = itertools.chain.from_iterable(
-        i[0] for i in records[:train_size])
-    vocabs = [i[0] for i in collections.Counter(
-        all_words).most_common()[unknown_number:]]
-    global known_vocabularies
-    known_vocabularies = set(vocabs)
-    if not remove_unknown:
-        known_vocabularies.add(UNKNOWN_TOKEN)
-    print("[Split dataset]\tWriting to files...")
-    filter_func = remove if remove_unknown else replace
-    with ProcessPoolExecutor() as pool:
-        filter_and_write(pool, records[:train_size], os.path.join(
-            output_dir, train_file_name), filter_func)
-        filter_and_write(
-            pool, records[train_size: train_size + dev_size],
-            os.path.join(output_dir, dev_file_name), filter_func)
-        filter_and_write(
-            pool, records[train_size + dev_size:],
-            os.path.join(output_dir, test_file_name), filter_func)
-    with open(os.path.join(output_dir, vocab_file_name), "w") as f:
-        f.write("\n".join(known_vocabularies))
-        f.write("\n")
-    with open(os.path.join(output_dir, label_file_name), "w") as f:
+    known_vocabs = set(itertools.chain.from_iterable(
+        i[1] for i in records[:train_size]))
+    known_vocabs.add(UNKNOWN_TOKEN)
+    replace_unknown(known_vocabs, records, train_size)
+    print("[build] writing to files...")
+    write_to_file(os.path.join(output_dir, train_prefix),
+                  records[:train_size])
+    write_to_file(os.path.join(output_dir, dev_prefix),
+                  records[train_size:train_size + dev_size])
+    write_to_file(os.path.join(output_dir, test_prefix),
+                  records[train_size + dev_size:])
+    with open(os.path.join(output_dir, vocab_file), "w") as f:
+        f.write("\n".join(known_vocabs))
+    with open(os.path.join(output_dir, label_file), "w") as f:
         f.write("\n".join(labels))
-        f.write("\n")
+    if ctf:
+        print("[build]Converting to ctf files...")
+        to_ctf(output_dir, train_prefix, vocab_file, label_file)
+        to_ctf(output_dir, dev_prefix, vocab_file, label_file)
+        to_ctf(output_dir, test_prefix, vocab_file, label_file)
 
 
 def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
@@ -227,94 +210,46 @@ def plot_log(
 
 
 if __name__ == "__main__":
-    import sys
-    import argparse
 
-    if len(sys.argv) > 1 and sys.argv[1] == 'segment':
-        parser = argparse.ArgumentParser(description='Build dataset from CSV.')
-        parser.add_argument('csv_file_path', help='path to CSV file')
-        parser.add_argument(
-            'data_field', help='field name of data entry in CSV')
-        parser.add_argument(
-            'label_field', help='field name of label entry in CSV')
-        parser.add_argument(
-            "--output_file", help="output file",
-            default="data.txt"
-        )
+    if len(sys.argv) > 1 and sys.argv[1] == 'build':
+        parser = argparse.ArgumentParser(
+            description='Build dataset from CSV. segment the sentences\
+            and split dataset.')
+        POSITIONALS = [("csv_file", "path to csv file"),
+                       ("data_field", "field name of data entry in CSV"),
+                       ("label_field", "field name of label entry in CSV"),
+                       ("output_dir", "directory for output files")]
+        OPTIONALS = [
+            ("train_prefix", "", "train", str),
+            ("dev_prefix", "", "dev", str),
+            ("test_prefix", "", "test", str),
+            ("train_ratio", "", 0.8, float),
+            ("dev_ratio", "", 0.1, float),
+            ("vocab_file", "filename for vocabulary", "vocabulary.txt", str),
+            ("label_file", "filename for labels", "label.txt", str),
+            ("max_size", "maximum number of entries from each label", 0, int),
+
+            ("ignored_labels", "labels to be ignored", "", str),
+            ("even", "keep numbers of entries from all labels balanced", False, bool),
+            ("ctf", "perform txt2ctf on the output", True, bool)
+        ]
+        for arg, h in POSITIONALS:
+            parser.add_argument(arg, help=h)
+        for arg, h, default, t in OPTIONALS:
+            parser.add_argument("--" + arg, help=h, default=default, type=t)
+
         args = vars(parser.parse_args(sys.argv[2:]))
 
         build_dataset(
             args['csv_file_path'],
             args['data_field'],
             args['label_field'],
-            output_file=args["output_file"]
+            args["output_dir"],
+            **args
         )
-    elif len(sys.argv) > 1 and sys.argv[1] == "split":
-        parser = argparse.ArgumentParser(
-            description="split dataset and store vocabularies")
-        parser.add_argument(
-            "data_file_name", help="input data"
-        )
-        parser.add_argument(
-            "--output_dir", help="output directory",
-            default="."
-        )
-        parser.add_argument(
-            '--train_file_name', help='where to store training dataset',
-            default='train.txt'
-        )
-        parser.add_argument(
-            '--test_file_name', help='where to store testing dataset',
-            default='test.txt'
-        )
-        parser.add_argument(
-            "--dev_file_name", help="where to store testing dataset",
-            default="dev.txt"
-        )
-        parser.add_argument(
-            '--train_ratio', help='training set ratio',
-            type=float, default=0.8
-        )
-        parser.add_argument(
-            "--dev_ratio", help="development set ratio",
-            type=float, default=0.1
-        )
-        parser.add_argument(
-            '--vocab_file_name', help='where to store vocabulary',
-            default='vocabulary.txt'
-        )
-        parser.add_argument(
-            '--label_file_name', help='where to store labels',
-            default='labels.txt'
-        )
-        parser.add_argument(
-            "--even", help="whether to subsample to make all labels even",
-            default=False,
-            type=bool
-        )
-        parser.add_argument(
-            "--ignored_labels", help="ingore labels, delimited by comma",
-            default="",
-            type=str
-        )
-        parser.add_argument(
-            "--remove_unknown", help="whether to remove unknown words",
-            default=False, type=bool
-        )
-        parser.add_argument(
-            "--unknown_number", help="top n words to be labelled as unknown",
-            default=0, type=int
-        )
-        parser.add_argument(
-            "--max_size", help="maximum number of data from each label",
-            default=0, type=int
-        )
-        args = vars(parser.parse_args(sys.argv[2:]))
-        file_name = args["data_file_name"]
-        del args["data_file_name"]
-        split(file_name, **args)
-        with open("{}/split.conf".format(args["output_dir"]), "w") as f:
+        with open(os.path.join(args["output_dir"], "build.conf"), "w") as f:
             json.dump(args, f)
+
     elif len(sys.argv) > 1 and sys.argv[1] == 'ctf':
         parser = argparse.ArgumentParser(
             description='Generate CNTK Text Format file.'
@@ -323,11 +258,11 @@ if __name__ == "__main__":
         parser.add_argument("vocab_label_dir",
                             help="directory to vocabulary and label files")
         parser.add_argument(
-            '--vocab_file_name', help='path to vocabulary file',
+            '--vocab_file', help='path to vocabulary file',
             default='vocabulary.txt'
         )
         parser.add_argument(
-            '--label_file_name', help='path to labels file',
+            '--label_file', help='path to labels file',
             default='labels.txt'
         )
 
@@ -336,12 +271,12 @@ if __name__ == "__main__":
         generate_CTF(
             args['dataset_file_path'],
             vocab_file_path=os.path.join(
-                args["vocab_label_dir"], args['vocab_file_name']),
+                args["vocab_label_dir"], args['vocab_file']),
             label_file_path=os.path.join(
-                args["vocab_label_dir"], args['label_file_name'])
+                args["vocab_label_dir"], args['label_file'])
         )
 
-    elif len(sys.argv) > 1 and sys.argv[1] == '--plot':
+    elif len(sys.argv) > 1 and sys.argv[1] == 'plot':
         parser = argparse.ArgumentParser(
             description='Plot CSV log file.'
         )
@@ -403,5 +338,5 @@ if __name__ == "__main__":
         )
     else:
         print(
-            'First argument must be "segment", "split", "ctf", or "plot".',
+            'First argument must be "build", "ctf", or "plot".',
             file=sys.stderr)
