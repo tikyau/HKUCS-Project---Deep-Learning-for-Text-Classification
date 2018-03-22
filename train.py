@@ -64,7 +64,7 @@ class CTFDataManager(object):
 
 class TrainManager(object):
     def __init__(self, model_wrapper, data_manager, log_path,
-                 minibatch_size=128, max_epochs=20):
+                 minibatch_size=256, max_epochs=20):
         self.epoch_size = data_manager.train_size
         self.minibatch_size = minibatch_size
         self.dev_reader = data_manager.dev_reader
@@ -102,7 +102,7 @@ class TrainManager(object):
         momentum_as_time_constant = C.momentum_as_time_constant_schedule(20)
         learner = C.adam(
             parameters=self.model.parameters,
-            lr=lr_schedule,
+            lr=1e-3,
             momentum=momentum_as_time_constant,
             gradient_clipping_threshold_per_sample=10,
             gradient_clipping_with_truncation=True
@@ -156,7 +156,7 @@ def get_log_path(output_dir, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMClassificationWrapper(128, 128, x_dim=x_dim, y_dim=y_dim)
+    return LSTMClassificationWrapper(300, 256, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(args):
