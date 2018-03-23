@@ -81,7 +81,6 @@ def segment_csv(csv_file, data_field, label_field, output_file):
         i = 0
         for row in reader:
             result.append(segment(data_field, label_field, row))
-            print(result[-1])
             i += 1
             if i % 1000 == 0:
                 print("processed {} rows...".format(i))
