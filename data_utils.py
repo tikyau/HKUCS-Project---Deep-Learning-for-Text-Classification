@@ -11,7 +11,6 @@ import sys
 import argparse
 
 import numpy as np
-import matplotlib.pyplot as plt
 import jieba
 from snownlp import SnowNLP
 
@@ -147,68 +146,6 @@ def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
           .format(output_file))
 
 
-def plot_log(
-        log_file_path, x_field, y_field, smooth_factor, to_accuracy,
-        x_label, y_label, title, color, transparent, dpi, min_x, max_x):
-    def _running_average_smooth(y, window_size):
-        kernel = np.ones(window_size) / window_size
-        y_pad = np.lib.pad(y, (window_size, ), 'edge')
-        y_smooth = np.convolve(y_pad, kernel, mode='same')
-        return y_smooth[window_size:-window_size]
-
-    x = list()
-    y = list()
-
-    print('[plot_log]\tReading CSV log file ...')
-
-    with open(log_file_path, 'r', newline='') as f:
-        reader = csv.DictReader(f)
-        for i, row in enumerate(reader):
-            if min_x >= 0 and int(row[x_field].strip()) < min_x:
-                continue
-            if max_x >= 0 and int(row[x_field].strip()) > max_x:
-                break
-            if row[y_field].strip().lower() != 'nan':
-                try:
-                    x.append(int(row[x_field].strip()))
-                except ValueError:
-                    raise ValueError('x-axis value error at line {}: {}'.format(
-                        i + 1, row[x_field].strip()
-                    ))
-                try:
-                    y.append(
-                        1.0 - float(row[y_field].strip()) if to_accuracy else
-                        float(row[y_field].strip())
-                    )
-                except ValueError:
-                    raise ValueError('y-axis value error at line {}: {}'.format(
-                        i + 1, row[y_field].strip()
-                    ))
-
-    x = np.asarray(x)
-    y = np.asarray(y)
-
-    print('[plot_log]\tPlotting data ...')
-
-    plt.xlabel(x_label)
-    plt.ylabel(y_label)
-    plt.title(title)
-
-    plt.plot(x, y, alpha=0.2, color=color)
-    plt.plot(
-        x, _running_average_smooth(y, smooth_factor), color=color, linewidth=2
-    )
-
-    plt.grid()
-
-    print('[plot_log]\tSaving figure ...')
-
-    plt.savefig(
-        '{}.png'.format(title.replace(' ', '_')),
-        bbox_inches='tight', transparent=transparent, dpi=dpi
-    )
-
-
 if __name__ == "__main__":
 
     if len(sys.argv) > 1 and sys.argv[1] == 'build':
@@ -276,66 +213,6 @@ if __name__ == "__main__":
                 args["vocab_label_dir"], args['label_file'])
         )
 
-    elif len(sys.argv) > 1 and sys.argv[1] == 'plot':
-        parser = argparse.ArgumentParser(
-            description='Plot CSV log file.'
-        )
-        parser.add_argument('log_file_path', help='path to log file')
-        parser.add_argument(
-            'x_field', help='field name of x-axis in CSV')
-        parser.add_argument(
-            'y_field', help='field name of y-axis in CSV')
-        parser.add_argument(
-            'x_label', help='label for x-axis in figure')
-        parser.add_argument(
-            'y_label', help='label for y-axis in figure')
-        parser.add_argument(
-            'title', help='title for figure')
-        parser.add_argument(
-            '--color', help='color of line', default='yellowgreen'
-        )
-        parser.add_argument(
-            '--transparent', help='transparent background',
-            type=bool, default=False
-        )
-        parser.add_argument(
-            '--dpi', help='DPI of saved figure file',
-            type=int, default=500
-        )
-        parser.add_argument(
-            '--smooth_factor', help='smooth factor',
-            type=int, default=9
-        )
-        parser.add_argument(
-            '--to_accuracy', help='convert to accuracy and plot',
-            type=bool, default=False
-        )
-        parser.add_argument(
-            '--min_x', help='min x-value to plot',
-            type=int, default=-1
-        )
-        parser.add_argument(
-            '--max_x', help='max x-value to plot',
-            type=int, default=-1
-        )
-
-        args = vars(parser.parse_args(sys.argv[2:]))
-
-        plot_log(
-            args['log_file_path'],
-            args['x_field'],
-            args['y_field'],
-            smooth_factor=args['smooth_factor'],
-            to_accuracy=args['to_accuracy'],
-            x_label=args['x_label'],
-            y_label=args['y_label'],
-            title=args['title'],
-            color=args['color'],
-            transparent=args['transparent'],
-            dpi=args['dpi'],
-            min_x=args['min_x'],
-            max_x=args['max_x']
-        )
     else:
         print(
             'First argument must be "build", "ctf", or "plot".',
