@@ -93,7 +93,7 @@ def main():
         for arg, h in POSITIONALS:
             parser.add_argument(arg, help=h)
         for arg, h, de, t in OPTIONALS:
-            parser.add_argument(arg, help=h, type=t, default=de)
+            parser.add_argument("--" + arg, help=h, type=t, default=de)
 
         args = vars(parser.parse_args(sys.argv[2:]))
 
