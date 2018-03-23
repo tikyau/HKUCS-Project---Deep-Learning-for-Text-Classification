@@ -1,5 +1,5 @@
-
-import sys
+#!/usr/bin/env python3
+1;4205;0cimport sys
 import math
 import argparse
 
@@ -36,7 +36,10 @@ def benchmark_snownlp(data_path):
         sentiment = SnowNLP(sentence).sentiments
         predicted = scale(sentiment)
         correct += 1 if correct_label == predicted else 0
-        confuse_matrix[correct_label - 1][predicted - 1] += 1
+        try:
+            confuse_matrix[correct_label - 1][predicted - 1] += 1
+        except Exception as e:
+            print(correct_label - 1, predicted - 1)
         print("{}/{} accuracy: {:.2f}".format(correct, total, correct / total))
     for i in range(len(labels)):
         print("\t".join((str(confuse_matrix[i][j])
@@ -48,6 +51,12 @@ def benchmark_snownlp(data_path):
 
 def benchmark_api(data_path):
     raise NotImplementedError()
+
+
+def train_snownlp(pos, neg):
+    from snownlp import sentiment
+    sentiment.train(pos, neg)
+    sentiment.save("movie_12345_even.marshal")
 
 
 def main():
@@ -70,4 +79,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    train_snownlp(sys.argv[1], sys.argv[2])
