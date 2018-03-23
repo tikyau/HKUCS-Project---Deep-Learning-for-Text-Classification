@@ -36,7 +36,7 @@ def segment(data_field, label_field, row):
     sentence = row[data_field].strip()
     if not sentence:
         return (sentence, [], row[label_field])
-    sentence = sentence.replace("\n", "\\n").replace("\t", "\\t")
+    sentence = sentence.replace("\n", "\\n").replace("\t", "\\t").replace('\r', "\\r")
     words = jieba.cut(SnowNLP(sentence).han)
     valid_words = list(filter(lambda x: x and all(map(
         lambda y: is_Chinese_char(y) and y not in IGNORED_CHAR and not y.isspace(), x)),
@@ -98,7 +98,7 @@ def read_input(input_file, ignored_labels):
     sentences = collections.defaultdict(list)
     with open(input_file, "r") as f:
         for line in f:
-            sentence, words, label = line[:-1].split('\t')
+            words, label, sentence = line[:-1].split('\t')
             if label not in ignored_labels:
                 sentences[label].append((sentence, words))
     return sentences
