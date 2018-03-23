@@ -1,8 +1,7 @@
 from __future__ import (absolute_import, division, print_function)
 
-from concurrent.futures import ProcessPoolExecutor
 from random import shuffle
-from functools import partial
+
 import multiprocessing
 import collections
 import itertools
@@ -12,11 +11,7 @@ import json
 import sys
 import argparse
 
-import numpy as np
-<< << << < HEAD
-== == == =
 
->>>>>> > ac9d2af1829f006ab664112c57cd73b3811b809f
 import jieba
 from snownlp import SnowNLP
 
@@ -39,11 +34,14 @@ def is_Chinese_char(c):
 
 def segment(data_field, label_field, row):
     sentence = row[data_field].strip()
+    if not sentence:
+        return (sentence, [], row[label_field])
+    sentence = sentence.replace("\n", "\\n").replace("\t", "\\t")
     words = jieba.cut(SnowNLP(sentence).han)
     valid_words = list(filter(lambda x: x and all(map(
         lambda y: is_Chinese_char(y) and y not in IGNORED_CHAR and not y.isspace(), x)),
         words))
-    return (sentence, words, row[label_field])
+    return (sentence, valid_words, row[label_field])
 
 
 def write_to_file(path, data):
@@ -77,9 +75,16 @@ def to_ctf(output_dir, prefix, vocab_file, label_file):
 def segment_csv(csv_file, data_field, label_field, output_file):
     jieba.enable_parallel(multiprocessing.cpu_count())
     print("[segment]\tprocessing CSV file...")
-    with open(csv_file, newline="") as f, ProcessPoolExecutor() as pool:
+    with open(csv_file, newline="") as f:
         reader = csv.DictReader(f, delimiter=",", quotechar='"')
-        result = pool.map(partial(segment, data_field, label_field), reader)
+        result = []
+        i = 0
+        for row in reader:
+            result.append(segment(data_field, label_field, row))
+            print(result[-1])
+            i += 1
+            if i % 1000 == 0:
+                print("processed {} rows...".format(i))
     print("[segment]\twriting to result")
     with open(output_file, "w") as f:
         for sentence, words, label in result:
@@ -179,12 +184,10 @@ if __name__ == "__main__":
 
         for arg, h in POSITIONALS:
             parser.add_argument(arg, help=h)
-        for arg, h, default, t in OPTIONALS:
-            parser.add_argument("--" + arg, help=h, default=default, type=t)
-
+ 
         args = vars(parser.parse_args(sys.argv[2:]))
         positionals = [args[i[0]] for i in POSITIONALS]
-        build_dataset(positionals)
+        segment_csv(*positionals)
     elif sys.argv[1] == "split":
         parser = argparse.ArgumentParser(
             description='Build dataset from CSV. segment the sentences\
