@@ -13,11 +13,15 @@ import sys
 import argparse
 
 import numpy as np
+<< << << < HEAD
+== == == =
+
+>>>>>> > ac9d2af1829f006ab664112c57cd73b3811b809f
 import jieba
 from snownlp import SnowNLP
 
 UNKNOWN_TOKEN = "UNKNOWN"
-IGNORED_CHAR = set([" ", "\t", "…", "“", "”"])
+IGNORED_CHAR = set(["\t", "…", "“", "”"])
 
 
 def is_Chinese_char(c):
@@ -61,6 +65,8 @@ def replace_unknown(known_vocabs, records, train_size):
 def to_ctf(output_dir, prefix, vocab_file, label_file):
     input_file = os.path.join(output_dir, prefix + ".txt")
     output_file = os.path.join(output_dir, prefix + ".ctf")
+    vocab_file = os.path.join(output_dir, vocab_file)
+    label_file = os.path.join(output_dir, label_file)
     os.system(('python /usr/local/cntk/Scripts/txt2ctf.py --map {} {} ' +
                '--annotated True --input {} --output {}')
               .format(
@@ -194,7 +200,7 @@ if __name__ == "__main__":
             ("train_ratio", "", 0.8, float),
             ("dev_ratio", "", 0.1, float),
             ("vocab_file", "filename for vocabulary", "vocabulary.txt", str),
-            ("label_file", "filename for labels", "label.txt", str),
+            ("label_file", "filename for labels", "labels.txt", str),
             ("max_size", "maximum number of entries from each label", 0, int),
             ("ignored_labels", "labels to be ignored", "", str),
             ("even", "keep numbers of entries from all labels balanced", False, bool),
