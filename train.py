@@ -13,6 +13,13 @@ from cntk.train.training_session import CrossValidationConfig,\
     training_session, CheckpointConfig, TestConfig
 import cntk.device
 from models import LSTMClassificationWrapper, LSTMRegressionWrapper
+from buildctf import GAUSSIAN_MODE, SCALER_MODE, ONEHOT_MODE
+
+
+def get_ctf_conf(input_dir):
+    path = os.path.join(input_dir, "ctf.conf")
+    with open(path) as f:
+        return f.readline()[:-1]
 
 
 class CTFDataManager(object):
@@ -24,8 +31,10 @@ class CTFDataManager(object):
         dev_file_path = os.path.join(input_dir, kwargs['dev_file_name'])
         vocab_file_path = os.path.join(input_dir, kwargs['vocab_file_name'])
         label_file_path = os.path.join(input_dir, kwargs['label_file_name'])
+        ctf_conf = get_ctf_conf(input_dir)
         self.x_dim = self._get_size(vocab_file_path)
-        self.y_dim = self._get_size(label_file_path)
+        self.y_dim = self._get_size(
+            label_file_path) if ctf_conf != SCALER_MODE else 1
         self.train_size = self._get_size(train_file_plain)
         self.x = C.sequence.input_variable(self.x_dim, is_sparse=True)
         self.y = C.input_variable(self.y_dim)
@@ -34,7 +43,7 @@ class CTFDataManager(object):
             sentence=C.io.StreamDef(
                 field='S0', shape=self.x_dim, is_sparse=True),
             label=C.io.StreamDef(
-                field='S1', shape=self.y_dim, is_sparse=True)
+                field='S1', shape=self.y_dim)
         )
         self.train_reader = C.io.MinibatchSource(
             C.io.CTFDeserializer(train_file_path,
