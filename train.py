@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-1;4205;0cfrom __future__ import (absolute_import, division, print_function)
+from __future__ import (absolute_import, division, print_function)
 import os
 import sys
 from datetime import datetime
@@ -16,10 +16,18 @@ from models import LSTMClassificationWrapper, LSTMRegressionWrapper
 from buildctf import GAUSSIAN_MODE, SCALER_MODE, ONEHOT_MODE
 
 
-def get_ctf_conf(input_dir):
-    path = os.path.join(input_dir, "ctf.conf")
-    with open(path) as f:
-        return f.readline()[:-1]
+def get_size(file_path):
+    with open(file_path, 'r') as f:
+        return len(f.readlines())
+
+
+
+
+def get_y_dim(label_file_path, input_dir):
+    with open(os.path.join(input_dir, "build.conf")) as f:
+        j = json.load(f)
+        return get_size(label_file_path) if j["ctf"] != SCALER_MODE else 1
+
 
 
 class CTFDataManager(object):
@@ -31,11 +39,9 @@ class CTFDataManager(object):
         dev_file_path = os.path.join(input_dir, kwargs['dev_file_name'])
         vocab_file_path = os.path.join(input_dir, kwargs['vocab_file_name'])
         label_file_path = os.path.join(input_dir, kwargs['label_file_name'])
-        ctf_conf = get_ctf_conf(input_dir)
-        self.x_dim = self._get_size(vocab_file_path)
-        self.y_dim = self._get_size(
-            label_file_path) if ctf_conf != SCALER_MODE else 1
-        self.train_size = self._get_size(train_file_plain)
+        self.x_dim = get_size(vocab_file_path)
+        self.y_dim = get_y_dim(label_file_path, input_dir)
+        self.train_size = get_size(train_file_plain)
         self.x = C.sequence.input_variable(self.x_dim, is_sparse=True)
         self.y = C.input_variable(self.y_dim)
 
@@ -66,11 +72,6 @@ class CTFDataManager(object):
             self.x: reader.streams.sentence,
             self.y: reader.streams.label
         }
-
-    def _get_size(self, file_path):
-        with open(file_path, 'r') as f:
-            return len(f.readlines())
-
 
 class TrainManager(object):
     def __init__(self, model_wrapper, data_manager, log_path,

@@ -1,5 +1,5 @@
+#!/usr/bin/env python3
 import sys
-import argparse
 import os
 
 import cntk as C
@@ -12,14 +12,14 @@ ONEHOT_MODE = "onehot"
 SCALER_MODE = "scaler"
 
 
-def gaussian(num_labels, i):
+def onehot(num_labels, i):
     result = np.zeros(num_labels)
     result[int(i) - 1] = 1
-    return gaussian_filter1d(result, 0.5)
+    return result
 
 
-def onehot(num_labels, i):
-    return [str(int(i) - 1) + ":1"]
+def gaussian(num_labels, i):
+    return gaussian_filter1d(onehot(num_labels, i), 0.5)
 
 
 def scaler(num_labels, i):
@@ -33,6 +33,7 @@ def get_vocab(vocab_file):
         for line in f:
             indexes[line[:-1]] = index
             index += 1
+    assert("UNKNOWN" in indexes)
     return indexes
 
 
@@ -57,7 +58,7 @@ def get_map(mode):
 
 def test(y_dim, mode, vocab_dim, file):
     print("testing ctf")
-    y_dim = num_labels if mode != SCALER_MODE else 1
+    y_dim = y_dim if mode != SCALER_MODE else 1
     streamDefs = C.io.StreamDefs(
         sentence=C.io.StreamDef(field="S0", shape=vocab_dim, is_sparse=True),
         label=C.io.StreamDef(field="S1", shape=y_dim)
@@ -68,35 +69,27 @@ def test(y_dim, mode, vocab_dim, file):
     print(reader.next_minibatch(1))
 
 
-def build(mode, file):
-    input_dir = os.path.dirname(file)
-    vocab_file = os.path.join(input_dir, "vocabulary.txt")
-    prefix = os.path.splitext(file)
+def build(in_file, out_file, vocab_file, label_file, mode):
     vocab = get_vocab(vocab_file)
-    sentences = get_sentences(file)
+    sentences = get_sentences(in_file)
     mapper = get_map(mode)
-    with open(os.path.join(input_dir, "ctf.conf"), "w") as f:
-        f.write(mode + "\n")
     num_labels = 0
-    with open(os.path.join(input_dir, "labels.txt")) as f:
+    with open(label_file) as f:
         num_labels = len(f.readlines())
     result = ""
-    with open(prefix + ".ctf", "w") as f:
+    with open(out_file, "w") as f:
         for i in range(len(sentences)):
             sentence = np.array([[str(vocab[w]) + ":1"]
                                  for w in sentences[i][0]])
             label = np.array([mapper(num_labels, sentences[i][1])])
             mapping = {"S0": sentence, "S1": label}
-            result += C.io.sequence_to_cntk_text_format(i, mapping)
+            result = C.io.sequence_to_cntk_text_format(i, mapping)
             f.write(result)
+            f.write('\n')
             if i % 1000 == 0:
                 print("[build] written {} lines".format(i))
-    test(num_labels, mode, len(vocab), prefix + ".ctf")
+    test(num_labels, mode, len(vocab), out_file)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: ./buildctf.py mode file, mode must\
-              be one of gaussian, scaler, onehot")
-        sys.exit(0)
-    build(sys.argv[1], sys.argv[2])
+    build(*sys.argv[1:])

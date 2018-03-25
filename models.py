@@ -59,7 +59,7 @@ class LSTMClassificationWrapper(object):
     def bind(self, x, y):
         self.model = self.model(x)
         loss = C.cross_entropy_with_softmax(self.model, y)
-        accuracy = 1 - C.classification_error(self.model, y)
+        accuracy = 1 - C.not_equal(C.argmax(self.model), C.argmax(y))
         self.metric = Metric(loss, accuracy)
 
 

@@ -2,7 +2,7 @@
 from __future__ import (absolute_import, division, print_function)
 
 from random import shuffle
-
+import subprocess
 import multiprocessing
 import collections
 import itertools
@@ -61,16 +61,14 @@ def replace_unknown(known_vocabs, records, train_size):
         records[i] = (sentence, words, label)
 
 
-def to_ctf(output_dir, prefix, vocab_file, label_file):
+def to_ctf(output_dir, prefix, vocab_file, label_file, mode):
     input_file = os.path.join(output_dir, prefix + ".txt")
     output_file = os.path.join(output_dir, prefix + ".ctf")
     vocab_file = os.path.join(output_dir, vocab_file)
     label_file = os.path.join(output_dir, label_file)
-    os.system(('python /usr/local/cntk/Scripts/txt2ctf.py --map {} {} ' +
-               '--annotated True --input {} --output {}')
-              .format(
-        vocab_file, label_file,
-        input_file, output_file))
+    subprocess.call("./buildctf.py {} {} {} {} {}".format(input_file,
+                                                          output_file, vocab_file,
+                                                          label_file, mode), shell=True)
 
 
 def segment_csv(csv_file, data_field, label_field, output_file):
@@ -119,7 +117,7 @@ def split(input_file, output_dir, train_prefix="train",
           test_prefix="test", dev_prefix="dev", train_ratio=0.8,
           dev_ratio=0.1, max_size=0, vocab_file="vocabulary.txt",
           label_file="labels.txt", ignored_labels="",
-          even=False, ctf=True):
+          even=False, ctf=""):
     assert(train_ratio + dev_ratio < 1)
     sentences = read_input(input_file, ignored_labels)
     truncate_labels(sentences, even, max_size)
@@ -144,13 +142,14 @@ def split(input_file, output_dir, train_prefix="train",
                   records[train_size + dev_size:])
     with open(os.path.join(output_dir, vocab_file), "w") as f:
         f.write("\n".join((i[0] for i in known_vocabs.most_common())))
+        f.write('\n')
     with open(os.path.join(output_dir, label_file), "w") as f:
         f.write("\n".join(labels))
     if ctf:
         print("[build]Converting to ctf files...")
-        to_ctf(output_dir, train_prefix, vocab_file, label_file)
-        to_ctf(output_dir, dev_prefix, vocab_file, label_file)
-        to_ctf(output_dir, test_prefix, vocab_file, label_file)
+        to_ctf(output_dir, train_prefix, vocab_file, label_file, ctf)
+        to_ctf(output_dir, dev_prefix, vocab_file, label_file, ctf)
+        to_ctf(output_dir, test_prefix, vocab_file, label_file, ctf)
 
 
 def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
@@ -207,7 +206,7 @@ if __name__ == "__main__":
             ("max_size", "maximum number of entries from each label", 0, int),
             ("ignored_labels", "labels to be ignored", "", str),
             ("even", "keep numbers of entries from all labels balanced", False, bool),
-            ("ctf", "perform txt2ctf on the output", True, bool)
+            ("ctf", "perform txt2ctf on the output", "", str)
         ]
         for arg, h in POSITIONALS:
             parser.add_argument(arg, help=h)
