@@ -7,9 +7,38 @@ import cntk as C
 from snownlp import SnowNLP
 
 
+def get_size(file_path):
+    with open(file_path, 'r') as f:
+        return len(f.readlines())
+
+
 def benchmark_cntk(data_path, model_path):
     model = C.load_model(model_path)
-    raise NotImplementedError()
+    vocab_file_path = os.path.join(data_path, "vocabulary.txt")
+    label_file_path = os.path.join(data_path, "labels.txt")
+    dev_file_path = os.path.join()
+    minibatch_size = 256
+    x_dim = get_size(vocab_file_path)
+    y_dim = get_size(label_file_path)
+    x = C.sequence.input_variable(x_dim)
+    y = C.input_variable(y_dim)
+    streamDefs = C.io.StreamDefs(
+        sentence=C.io.StreamDef(
+            field='S0', shape=x_dim, is_sparse=True),
+        label=C.io.StreamDef(
+            field='S1', shape=y_dim, is_sparse=True)
+    )
+    dev_reader = C.io.MinibatchSource(
+        C.io.CTFDeserializer(dev_file_path,
+                             streamDefs),
+        randomize=True, max_sweeps=1)
+    error = C.classification_error(model, y)
+    progress_printer = C.logging.ProgressPrinter(
+        freq=100, tag='evaluate'
+    )
+    evaluator = C.eval.Evaluator(error, [progress_printer])
+    input_map = {x: dev_reader.steams.sentence, y: dev_reader.streams.label}
+    evaluator.test_minibatch(input_map)
 
 
 def read_sentences(data_path):
@@ -79,5 +108,5 @@ def main():
 
 
 if __name__ == "__main__":
-#    train_snownlp(sys.argv[1], sys.argv[2])
+    #    train_snownlp(sys.argv[1], sys.argv[2])
     main()

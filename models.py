@@ -63,23 +63,10 @@ class LSTMClassificationWrapper(object):
         self.metric = Metric(loss, error)
 
 
-class YAClassificationWrapper(object):
-    def __init__(self, embedding_dim, lstm_hidden_dim, x_dim, y_dim,
-                 name="yet_another_classifier"):
-        self.model = C.layers.Sequential([
-            C.layers.Embedding(embedding_dim),
-            C.layers.Recurrence(
-                C.layers.LSTM(lstm_hidden_dim)
-            ),
-            C.layers.Dropout(0.75),
-            C.layers.Recurrence(
-                C.layers.LSTM(lstm_hidden_dim)
-            ),
-            C.layers.BatchNormalization(),
-            C.layers.Dense((y_dim, ))
-        ])
-        self.metric = None
-        self.name
+class GaussianClassificationWrapper(LSTMClassificationWrapper):
+    def __init__(self, embedding_dim, lstm_hidden_dim,
+                 x_dim, y_dim, name="clasification_with_gaussian"):
+        super.__init__(embedding_dim, lstm_hidden_dim, x_dim, y_dim, name)
 
     def bind(self, x, y):
         self.model = self.model(x)
