@@ -66,7 +66,7 @@ class CTFDataManager(object):
 class TrainManager(object):
     def __init__(self, model_wrapper, data_manager, log_path,
                  minibatch_size=256, max_epochs=20):
-        self.epoch_size = data_manager.train_size
+        self.epoch_size = data_manager.train_size // 4
         self.minibatch_size = minibatch_size
         self.dev_reader = data_manager.dev_reader
         self.train_reader = data_manager.train_reader
@@ -115,7 +115,7 @@ class TrainManager(object):
             minibatch_source=self.dev_reader,
             minibatch_size=self.minibatch_size,
             model_inputs_to_streams=self.dev_map,
-            frequency=self.epoch_size // 2
+            frequency=self.epoch_size // 10
         )
         checkpoint = os.path.join(log_path, "checkpoint")
         checkpoint_config = CheckpointConfig(
