@@ -16,7 +16,7 @@ def benchmark_cntk(data_path, model_path):
     vocab_file_path = os.path.join(data_path, "vocabulary.txt")
     label_file_path = os.path.join(data_path, "labels.txt")
     dev_file_path = os.path.join(data_path, "dev.ctf")
-    minibatch_size = 256
+    minibatch_size = 1024
     x_dim = get_size(vocab_file_path)
     y_dim = get_size(label_file_path)
     x = C.sequence.input_variable(x_dim, is_sparse=True)
@@ -34,15 +34,15 @@ def benchmark_cntk(data_path, model_path):
         randomize=True, max_sweeps=1)
     error = C.classification_error(model, y)
     progress_printer = C.logging.ProgressPrinter(
-        freq=100, tag='evaluate'
+        freq=100, tag='evaluate', test_freq=1000
     )
     evaluator = C.eval.Evaluator(error, [progress_printer])
     input_map = {x: dev_reader.streams.sentence, y: dev_reader.streams.label}
-
-    data = dev_reader.next_minibatch(256, input_map=input_map)
+    
+    data = dev_reader.next_minibatch(minibatch_size, input_map=input_map)
     while data:
         evaluator.test_minibatch(data)
-        data = dev_reader.next_minibatch(256, input_map=input_map)
+        data = dev_reader.next_minibatch(minibatch_size, input_map=input_map)
     evaluator.summarize_test_progress()
 
 
@@ -114,5 +114,4 @@ def main():
 
 
 if __name__ == "__main__":
-    #    train_snownlp(sys.argv[1], sys.argv[2])
     main()
