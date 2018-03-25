@@ -101,7 +101,7 @@ def read_input(input_file, ignored_labels):
         for line in f:
             words, label, sentence = line[:-1].split('\t')
             if label not in ignored_labels:
-                sentences[label].append((sentence, words))
+                sentences[label].append((sentence, words.split()))
     return sentences
 
 

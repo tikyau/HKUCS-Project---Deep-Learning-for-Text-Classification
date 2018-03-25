@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-1;4205;0cimport sys
+import sys
 import math
 import argparse
 
@@ -56,7 +56,7 @@ def benchmark_api(data_path):
 def train_snownlp(pos, neg):
     from snownlp import sentiment
     sentiment.train(pos, neg)
-    sentiment.save("movie_12345_even.marshal")
+    sentiment.save("movie_even.marshal")
 
 
 def main():
@@ -79,4 +79,5 @@ def main():
 
 
 if __name__ == "__main__":
-    train_snownlp(sys.argv[1], sys.argv[2])
+#    train_snownlp(sys.argv[1], sys.argv[2])
+    main()

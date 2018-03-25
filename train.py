@@ -157,7 +157,7 @@ def get_log_path(output_dir, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMClassificationWrapper(300, 256, x_dim=x_dim, y_dim=y_dim)
+    return LSTMClassificationWrapper(300, 1024, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(args):
@@ -178,14 +178,14 @@ def train_model(args):
     if not os.path.exists(log_path):
         os.mkdir(log_path)
     setup_logger(log_path)
-    train_manager = TrainManager(wrapper, data_manager, log_path)
+    train_manager = TrainManager(wrapper, data_manager, log_path, max_epochs=1)
 
     save_config(log_path, wrapper, train_manager, args)
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
     print("Training size:", data_manager.train_size)
     train_manager.session.train()
-
+    wrapper.model.save(os.path.join(log_path, "final_model"))
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train and test.')
