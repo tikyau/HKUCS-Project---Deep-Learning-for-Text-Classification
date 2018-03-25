@@ -1,4 +1,5 @@
 import cntk as C
+import sys
 import numpy as np
 
 
@@ -23,20 +24,9 @@ def convert(filename):
             s = np.array([[str(indexes[w])+":1"] for w in sentences[i][0]])
             label = np.array([[sentences[i][1]]])
             mapping = {"S0": s, "S1": label}
-            print(C.io.sequence_to_cntk_text_format(i, mapping), file=f)
+            print(C.io.sequence_to_cntk_text_format(i, mapping))
+            sys.exit(0)
     return len(vocab)
 
 
-l = convert("test.txt")
-streamDefs = C.io.StreamDefs(
-    sentence=C.io.StreamDef(
-        field='S0', shape=l, is_sparse=True),
-    label=C.io.StreamDef(
-        field='S1', shape=1)
-)
-train_reader = C.io.MinibatchSource(
-    C.io.CTFDeserializer("test.ctf",
-                         streamDefs),
-    randomize=True,
-    max_sweeps=C.io.INFINITELY_REPEAT)
-print(train_reader.next_minibatch(1))
+l = convert(sys.argv[1])
