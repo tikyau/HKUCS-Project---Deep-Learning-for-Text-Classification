@@ -80,8 +80,7 @@ class TrainManager(object):
 
     def _create_trainer(self, log_path, learner, max_epochs):
         progress_printer = C.logging.ProgressPrinter(
-            freq=100, tag='Training', num_epochs=max_epochs,
-            test_freq=500
+            freq=100, tag='Training', num_epochs=max_epochs
         )
         tensorboard_writer = C.logging.TensorBoardProgressWriter(
             freq=10, log_dir=log_path, model=self.model
@@ -186,6 +185,7 @@ def train_model(args):
     print("Training size:", data_manager.train_size)
     train_manager.session.train()
     wrapper.model.save(os.path.join(log_path, "final_model"))
+
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train and test.')
