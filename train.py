@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from __future__ import (absolute_import, division, print_function)
+1;4205;0cfrom __future__ import (absolute_import, division, print_function)
 import os
 import sys
 from datetime import datetime
@@ -65,7 +65,7 @@ class CTFDataManager(object):
 
 class TrainManager(object):
     def __init__(self, model_wrapper, data_manager, log_path,
-                 minibatch_size=256, max_epochs=20):
+                 minibatch_size=1024, max_epochs=20):
         self.max_epochs = max_epochs
         self.log_path = log_path
         self.epoch_size = data_manager.train_size
@@ -80,11 +80,11 @@ class TrainManager(object):
         self.loggers = self._create_loggers()
         self.trainer = C.Trainer(
             self.model, self.metric, learner, self.loggers)
-        self.evaluator = C.eval.Evaluator(self.metric, self.loggers)
+        self.evaluator = C.eval.Evaluator(self.metric.accuracy, self.loggers)
 
     def _create_loggers(self):
         progress_printer = C.logging.ProgressPrinter(
-            freq=100, tag='Training', num_epochs=self.max_epochs
+            freq=100, tag='Training', num_epochs=self.max_epochs, test_freq=1000
         )
         tensorboard_writer = C.logging.TensorBoardProgressWriter(
             freq=10, log_dir=self.log_path, model=self.model
@@ -102,28 +102,32 @@ class TrainManager(object):
         momentum_as_time_constant = C.momentum_as_time_constant_schedule(20)
         learner = C.adam(
             parameters=self.model.parameters,
-            lr=1e-3,
+            lr=3e-4,
             momentum=momentum_as_time_constant,
-            gradient_clipping_threshold_per_sample=10,
+            gradient_clipping_threshold_per_sample=0.21,
             gradient_clipping_with_truncation=True
         )
         return learner
 
     def train(self):
         checkpoint = os.path.join(self.log_path, "checkpoint")
+        print("epoch sizes: ", self.epoch_size)
         for i in range(self.max_epochs):
             accumulated = 0
             while accumulated < self.epoch_size:
-                trainer.train_minibatch(self.train_reader.next_minibatch(
+                self.trainer.train_minibatch(self.train_reader.next_minibatch(
                     self.minibatch_size, input_map=self.train_map))
                 accumulated += self.minibatch_size
-                if (accumulated // self.minibatch_size) % 10000 == 0:
+                if (accumulated // self.minibatch_size) % 5000 == 0:
                     self.evaluate()
             self.evaluate()
             self.model.save("{}.{}".format(checkpoint, i))
-        trainer.summarize_training_progress()
+        self.trainer.summarize_training_progress()
 
     def evaluate(self):
+        pos = self.dev_reader.current_position
+        pos["minibatchSourcePosition"] = 0
+        self.dev_reader.current_position = pos
         batch = self.dev_reader.next_minibatch(
             self.minibatch_size, input_map=self.dev_map)
         while batch:
@@ -177,7 +181,7 @@ def train_model(args):
     if not os.path.exists(log_path):
         os.mkdir(log_path)
     setup_logger(log_path)
-    train_manager = TrainManager(wrapper, data_manager, log_path, max_epochs=1)
+    train_manager = TrainManager(wrapper, data_manager, log_path, max_epochs=10)
 
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
