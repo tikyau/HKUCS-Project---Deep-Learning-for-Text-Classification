@@ -5,9 +5,6 @@ import argparse
 import os
 
 
-
-
-
 def get_size(file_path):
     with open(file_path, 'r') as f:
         return len(f.readlines())
@@ -41,12 +38,13 @@ def benchmark_cntk(data_path, model_path):
     )
     evaluator = C.eval.Evaluator(error, [progress_printer])
     input_map = {x: dev_reader.streams.sentence, y: dev_reader.streams.label}
-    
+
     data = dev_reader.next_minibatch(256, input_map=input_map)
     while data:
         evaluator.test_minibatch(data)
         data = dev_reader.next_minibatch(256, input_map=input_map)
     evaluator.summarize_test_progress()
+
 
 def read_sentences(data_path):
     sentences = []

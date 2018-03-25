@@ -81,10 +81,12 @@ class TrainManager(object):
     def _create_trainer(self, log_path, learner, max_epochs):
         progress_printer = C.logging.ProgressPrinter(
             freq=100, tag='Training', num_epochs=max_epochs
+            test_freq=500
         )
         tensorboard_writer = C.logging.TensorBoardProgressWriter(
             freq=10, log_dir=log_path, model=self.model
         )
+        self.loggers = [progress_printer, tensorboard_writer]
         trainer = C.Trainer(
             self.model, self.metric,
             learner, [progress_printer, tensorboard_writer]
@@ -123,14 +125,29 @@ class TrainManager(object):
                                  minibatch_size=self.minibatch_size,
                                  model_inputs_to_streams=self.dev_map,
                                  criterion=self.metric.error)
-        return training_session(
-            trainer=trainer, mb_source=self.train_reader,
-            mb_size=self.minibatch_size,
-            model_inputs_to_streams=self.train_map,
-            progress_frequency=self.epoch_size, cv_config=cv_config,
-            max_samples=self.epoch_size * max_epochs,
-            checkpoint_config=checkpoint_config, test_config=test_config
-        )
+        accumulated = 0
+        evaluator = C.eval.Evaluator(self.metric, self.loggers)
+        while accumulated < self.epoch_size:
+            trainer.train_minibatch(self.train_reader.next_minibatch(
+                self.minibatch_size), input_map=self.train_map)
+            accumulated += self.minibatch_size
+            if (accumulated // self.minibatch_size) % 10 == 0:
+                batch = self.dev_reader.next_minibatch(
+                    self.minibatch_size, input_map=self.dev_map)
+                while batch:
+                    evaluator.test_minibatch(batch)
+                    batch = self.dev_reader.next_minibatch(
+                        self.minibatch_size, input_map=self.dev_map)
+                evaluator.summarize_test_progress()
+        trainer.summarize_training_progress()
+        batch = self.dev_reader.next_minibatch(
+            self.minibatch_size, input_map=self.dev_map)
+        while batch:
+            evaluator.test_minibatch(batch)
+            batch = self.dev_reader.next_minibatch(
+                self.minibatch_size, input_map=self.dev_map)
+        evaluator.summarize_test_progress()
+        sys.exit(0)
 
 
 def save_config(log_path, wrapper, train_manager, args):
