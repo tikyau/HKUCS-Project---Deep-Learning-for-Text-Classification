@@ -2,9 +2,10 @@
 import sys
 import math
 import argparse
+import os
 
-import cntk as C
-from snownlp import SnowNLP
+
+
 
 
 def get_size(file_path):
@@ -13,15 +14,17 @@ def get_size(file_path):
 
 
 def benchmark_cntk(data_path, model_path):
+    import cntk as C
     model = C.load_model(model_path)
     vocab_file_path = os.path.join(data_path, "vocabulary.txt")
     label_file_path = os.path.join(data_path, "labels.txt")
-    dev_file_path = os.path.join()
+    dev_file_path = os.path.join(data_path, "dev.ctf")
     minibatch_size = 256
     x_dim = get_size(vocab_file_path)
     y_dim = get_size(label_file_path)
-    x = C.sequence.input_variable(x_dim)
-    y = C.input_variable(y_dim)
+    x = C.sequence.input_variable(x_dim, is_sparse=True)
+    model = model(x)
+    y = C.input_variable(y_dim, is_sparse=True)
     streamDefs = C.io.StreamDefs(
         sentence=C.io.StreamDef(
             field='S0', shape=x_dim, is_sparse=True),
@@ -37,9 +40,13 @@ def benchmark_cntk(data_path, model_path):
         freq=100, tag='evaluate'
     )
     evaluator = C.eval.Evaluator(error, [progress_printer])
-    input_map = {x: dev_reader.steams.sentence, y: dev_reader.streams.label}
-    evaluator.test_minibatch(input_map)
-
+    input_map = {x: dev_reader.streams.sentence, y: dev_reader.streams.label}
+    
+    data = dev_reader.next_minibatch(256, input_map=input_map)
+    while data:
+        evaluator.test_minibatch(data)
+        data = dev_reader.next_minibatch(256, input_map=input_map)
+    evaluator.summarize_test_progress()
 
 def read_sentences(data_path):
     sentences = []
@@ -51,6 +58,7 @@ def read_sentences(data_path):
 
 
 def benchmark_snownlp(data_path):
+    from snownlp import SnowNLP
     sentences = read_sentences(data_path)
     labels = set([i[1] for i in sentences])
 
