@@ -66,7 +66,9 @@ class CTFDataManager(object):
 class TrainManager(object):
     def __init__(self, model_wrapper, data_manager, log_path,
                  minibatch_size=256, max_epochs=20):
-        self.epoch_size = data_manager.train_size // 4
+        self.max_epochs = max_epochs
+        self.log_path = log_path
+        self.epoch_size = data_manager.train_size
         self.minibatch_size = minibatch_size
         self.dev_reader = data_manager.dev_reader
         self.train_reader = data_manager.train_reader
@@ -75,23 +77,19 @@ class TrainManager(object):
         self.metric = model_wrapper.metric
         self.model = model_wrapper.model
         learner = self._create_learner()
-        trainer = self._create_trainer(log_path, learner, max_epochs)
-        self.session = self._create_session(log_path, trainer, max_epochs)
+        self.loggers = self._create_loggers()
+        self.trainer = C.Trainer(
+            self.model, self.metric, learner, self.loggers)
+        self.evaluator = C.eval.Evaluator(self.metric, self.loggers)
 
-    def _create_trainer(self, log_path, learner, max_epochs):
+    def _create_loggers(self):
         progress_printer = C.logging.ProgressPrinter(
-            freq=100, tag='Training', num_epochs=max_epochs
-            test_freq=500
+            freq=100, tag='Training', num_epochs=self.max_epochs
         )
         tensorboard_writer = C.logging.TensorBoardProgressWriter(
-            freq=10, log_dir=log_path, model=self.model
+            freq=10, log_dir=self.log_path, model=self.model
         )
-        self.loggers = [progress_printer, tensorboard_writer]
-        trainer = C.Trainer(
-            self.model, self.metric,
-            learner, [progress_printer, tensorboard_writer]
-        )
-        return trainer
+        return [progress_printer, tensorboard_writer]
 
     def _create_learner(self):
         lr_per_sample = [3e-5] * 10 + [1.5e-5] * 20 + [1e-5]
@@ -111,43 +109,28 @@ class TrainManager(object):
         )
         return learner
 
-    def _create_session(self, log_path, trainer, max_epochs):
-        cv_config = CrossValidationConfig(
-            minibatch_source=self.dev_reader,
-            minibatch_size=self.minibatch_size,
-            model_inputs_to_streams=self.dev_map,
-            frequency=self.epoch_size // 10
-        )
-        checkpoint = os.path.join(log_path, "checkpoint")
-        checkpoint_config = CheckpointConfig(
-            checkpoint, frequency=self.epoch_size, restore=False)
-        test_config = TestConfig(minibatch_source=self.dev_reader,
-                                 minibatch_size=self.minibatch_size,
-                                 model_inputs_to_streams=self.dev_map,
-                                 criterion=self.metric.error)
-        accumulated = 0
-        evaluator = C.eval.Evaluator(self.metric, self.loggers)
-        while accumulated < self.epoch_size:
-            trainer.train_minibatch(self.train_reader.next_minibatch(
-                self.minibatch_size), input_map=self.train_map)
-            accumulated += self.minibatch_size
-            if (accumulated // self.minibatch_size) % 10 == 0:
-                batch = self.dev_reader.next_minibatch(
-                    self.minibatch_size, input_map=self.dev_map)
-                while batch:
-                    evaluator.test_minibatch(batch)
-                    batch = self.dev_reader.next_minibatch(
-                        self.minibatch_size, input_map=self.dev_map)
-                evaluator.summarize_test_progress()
+    def train(self):
+        checkpoint = os.path.join(self.log_path, "checkpoint")
+        for i in range(self.max_epochs):
+            accumulated = 0
+            while accumulated < self.epoch_size:
+                trainer.train_minibatch(self.train_reader.next_minibatch(
+                    self.minibatch_size, input_map=self.train_map))
+                accumulated += self.minibatch_size
+                if (accumulated // self.minibatch_size) % 10000 == 0:
+                    self.evaluate()
+            self.evaluate()
+            self.model.save("{}.{}".format(checkpoint, i))
         trainer.summarize_training_progress()
+
+    def evaluate(self):
         batch = self.dev_reader.next_minibatch(
             self.minibatch_size, input_map=self.dev_map)
         while batch:
-            evaluator.test_minibatch(batch)
+            self.evaluator.test_minibatch(batch)
             batch = self.dev_reader.next_minibatch(
                 self.minibatch_size, input_map=self.dev_map)
-        evaluator.summarize_test_progress()
-        sys.exit(0)
+        self.evaluator.summarize_test_progress()
 
 
 def save_config(log_path, wrapper, train_manager, args):
@@ -196,11 +179,11 @@ def train_model(args):
     setup_logger(log_path)
     train_manager = TrainManager(wrapper, data_manager, log_path, max_epochs=1)
 
-    save_config(log_path, wrapper, train_manager, args)
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
     print("Training size:", data_manager.train_size)
-    train_manager.session.train()
+    train_manager.train()
+    save_config(log_path, wrapper, train_manager, args)
     wrapper.model.save(os.path.join(log_path, "final_model"))
 
 

@@ -3,7 +3,7 @@ import collections
 
 import cntk as C
 
-Metric = collections.namedtuple("Metric", ["loss", "error"])
+Metric = collections.namedtuple("Metric", ["loss", "accuracy"])
 
 
 def BiRecurrence(fwd, bwd):
@@ -35,8 +35,8 @@ class LSTMRegressionWrapper(object):
     def bind(self, x, y):
         self.model = self.model(x)
         loss = C.squared_error(self.model * 2.5, C.argmax(y) - 2)
-        error = C.not_equal(C.round(self.model), C.argmax(y) - 2)
-        self.metric = Metric(loss, error)
+        accuracy = 1 - C.not_equal(C.round(self.model), C.argmax(y) - 2)
+        self.metric = Metric(loss, accuracy)
 
 
 class LSTMClassificationWrapper(object):
@@ -59,8 +59,8 @@ class LSTMClassificationWrapper(object):
     def bind(self, x, y):
         self.model = self.model(x)
         loss = C.cross_entropy_with_softmax(self.model, y)
-        error = C.classification_error(self.model, y)
-        self.metric = Metric(loss, error)
+        accuracy = 1 - C.classification_error(self.model, y)
+        self.metric = Metric(loss, accuracy)
 
 
 class GaussianClassificationWrapper(LSTMClassificationWrapper):
@@ -71,5 +71,5 @@ class GaussianClassificationWrapper(LSTMClassificationWrapper):
     def bind(self, x, y):
         self.model = self.model(x)
         loss = C.cross_entropy_with_softmax(self.model, y)
-        error = C.classification_error(self.model, y)
-        self.metric = Metric(loss, error)
+        accuracy = 1 - C.classification_error(self.model, y)
+        self.metric = Metric(loss, accuracy)
