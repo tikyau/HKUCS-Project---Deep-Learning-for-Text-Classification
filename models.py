@@ -67,13 +67,15 @@ class CNNClassificationWrapper(object):
     def __init__(self, embedding_dim, x_dim, y_dim, name="CNN_classification"):
         with C.layers.default_options(activation=C.relu):
             self.model = C.layers.Sequential([
-                C.layers.Embedding(embedding_dim, name="embed"),
+                C.layers.Embedding(300),
                 C.layers.Convolution(
-                    (3, ), num_filters=20, sequential=True),
-                C.layers.GlobalAveragePooling(),
-                C.layers.Dense((100,)),
-                C.layers.Dense((y_dim, ))
-            ], name=name)
+                    (3, 1), 20, sequential=True, reduction_rank=0),
+                C.sequence.reduce_max,
+                C.layers.BatchNormalization(),
+                C.layers.Dropout(0.5),
+                C.layers.Dense(50),
+                C.layers.Dense(y_dim)
+            ])
         self.metric = None
         self.name = name
 
