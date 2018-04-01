@@ -2,7 +2,6 @@
 from __future__ import (absolute_import, division, print_function)
 import os
 import sys
-from functools import partial
 from datetime import datetime
 import signal
 import argparse
@@ -12,7 +11,8 @@ import random
 
 import cntk as C
 import cntk.device
-from models import LSTMClassificationWrapper, LSTMRegressionWrapper
+from models import LSTMClassificationWrapper, LSTMRegressionWrapper,\
+    CNNClassificationWrapper
 from buildctf import GAUSSIAN_MODE, SCALER_MODE, ONEHOT_MODE
 
 
@@ -150,7 +150,7 @@ class TrainManager(object):
         while batch:
             num_samples += batch[self.x].num_samples
             avg_acc = self.evaluator.test_minibatch(batch)
-            correct_samples += num_samples * avg_acc
+            correct_samples += batch[self.x].num_samples * avg_acc
             batch = self.dev_reader.next_minibatch(
                 self.minibatch_size, input_map=self.dev_map)
         self.evaluator.summarize_test_progress()
@@ -187,7 +187,7 @@ def get_log_path(input_dir, mode, output_dir, name, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMClassificationWrapper(300, 256, x_dim=x_dim, y_dim=y_dim)
+    return CNNClassificationWrapper(300, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(data_manager, wrapper, log_path, args):

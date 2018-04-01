@@ -69,7 +69,7 @@ class CNNClassificationWrapper(object):
             self.model = C.layers.Sequential([
                 C.layers.Embedding(embedding_dim, name="embed"),
                 C.layers.Convolution(
-                    (None, 3), num_filters=20, sequential=True),
+                    (3, ), num_filters=20, sequential=True),
                 C.layers.GlobalAveragePooling(),
                 C.layers.Dense((100,)),
                 C.layers.Dense((y_dim, ))
