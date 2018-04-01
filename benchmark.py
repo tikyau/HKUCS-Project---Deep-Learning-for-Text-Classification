@@ -38,7 +38,7 @@ def benchmark_cntk(data_path, model_path):
     )
     evaluator = C.eval.Evaluator(error, [progress_printer])
     input_map = {x: dev_reader.streams.sentence, y: dev_reader.streams.label}
-    
+
     data = dev_reader.next_minibatch(minibatch_size, input_map=input_map)
     while data:
         evaluator.test_minibatch(data)
@@ -73,7 +73,7 @@ def benchmark_snownlp(data_path):
         correct += 1 if correct_label == predicted else 0
         try:
             confuse_matrix[correct_label - 1][predicted - 1] += 1
-        except Exception as e:
+        except Exception:
             print(correct_label - 1, predicted - 1)
         print("{}/{} accuracy: {:.2f}".format(correct, total, correct / total))
     for i in range(len(labels)):

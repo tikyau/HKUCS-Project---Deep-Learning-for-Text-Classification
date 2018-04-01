@@ -16,6 +16,8 @@ import argparse
 import jieba
 from snownlp import SnowNLP
 
+from buildctf import ONEHOT_MODE
+
 UNKNOWN_TOKEN = "UNKNOWN"
 IGNORED_CHAR = set(["\t", "…", "“", "”"])
 
@@ -37,7 +39,8 @@ def segment(data_field, label_field, row):
     sentence = row[data_field].strip()
     if not sentence:
         return (sentence, [], row[label_field])
-    sentence = sentence.replace("\n", "\\n").replace("\t", "\\t").replace('\r', "\\r")
+    sentence = sentence.replace("\n", "\\n").replace(
+        "\t", "\\t").replace('\r', "\\r")
     words = jieba.cut(SnowNLP(sentence).han)
     valid_words = list(filter(lambda x: x and all(map(
         lambda y: is_Chinese_char(y) and y not in IGNORED_CHAR and not y.isspace(), x)),
@@ -106,7 +109,7 @@ def read_input(input_file, ignored_labels):
 def truncate_labels(sentences, even, max_size):
     if even or max_size:
         print("[build] truncating number of sentences from each label...")
-        size = min(map(lambda x: len(x), sentences.values()))
+        size = min(map(len, sentences.values()))
         if max_size:
             size = min(max_size, size)
         for label in sentences:
@@ -117,7 +120,7 @@ def split(input_file, output_dir, train_prefix="train",
           test_prefix="test", dev_prefix="dev", train_ratio=0.8,
           dev_ratio=0.1, max_size=0, vocab_file="vocabulary.txt",
           label_file="labels.txt", ignored_labels="",
-          even=False, ctf=""):
+          even=False):
     assert(train_ratio + dev_ratio < 1)
     sentences = read_input(input_file, ignored_labels)
     truncate_labels(sentences, even, max_size)
@@ -145,24 +148,22 @@ def split(input_file, output_dir, train_prefix="train",
         f.write('\n')
     with open(os.path.join(output_dir, label_file), "w") as f:
         f.write("\n".join(labels))
-    if ctf:
-        print("[build]Converting to ctf files...")
-        to_ctf(output_dir, train_prefix, vocab_file, label_file, ctf)
-        to_ctf(output_dir, dev_prefix, vocab_file, label_file, ctf)
-        to_ctf(output_dir, test_prefix, vocab_file, label_file, ctf)
 
 
-def generate_CTF(dataset_file_path, vocab_file_path, label_file_path):
+def generate_CTF(mode, dataset_file_path, vocab_label_dir, vocab_file, label_file):
     output_dir = os.path.dirname(dataset_file_path)
+    if not vocab_label_dir:
+        vocab_label_dir = output_dir
+    label_file = os.path.join(vocab_label_dir, label_file)
+    vocab_file = os.path.join(vocab_label_dir, vocab_file)
     dataset_name = os.path.splitext(os.path.basename(dataset_file_path))[0]
+    output_file = os.path.join(
+        output_dir, "{}_{}.ctf".format(mode, dataset_name))
     print('[generate_CTF]\tGenerating CTF file for {} set ...'
           .format(dataset_name))
-    output_file = os.path.join(output_dir, dataset_name + '.ctf')
-    os.system(('python /usr/local/cntk/Scripts/txt2ctf.py --map {} {} ' +
-               '--annotated True --input {} --output {}')
-              .format(
-        vocab_file_path, label_file_path,
-        dataset_file_path, output_file))
+    subprocess.call("./buildctf.py {} {} {} {} {}".format(dataset_file_path,
+                                                          output_file, vocab_file,
+                                                          label_file, mode), shell=True)
     print('[generate_CTF]\tCTF file {} successfully generated!'
           .format(output_file))
 
@@ -183,7 +184,7 @@ if __name__ == "__main__":
 
         for arg, h in POSITIONALS:
             parser.add_argument(arg, help=h)
- 
+
         args = vars(parser.parse_args(sys.argv[2:]))
         positionals = [args[i[0]] for i in POSITIONALS]
         segment_csv(*positionals)
@@ -206,7 +207,6 @@ if __name__ == "__main__":
             ("max_size", "maximum number of entries from each label", 0, int),
             ("ignored_labels", "labels to be ignored", "", str),
             ("even", "keep numbers of entries from all labels balanced", False, bool),
-            ("ctf", "perform txt2ctf on the output", "", str)
         ]
         for arg, h in POSITIONALS:
             parser.add_argument(arg, help=h)
@@ -226,25 +226,29 @@ if __name__ == "__main__":
             description='Generate CNTK Text Format file.'
         )
         parser.add_argument('dataset_file_path', help='path to dataset file')
-        parser.add_argument("vocab_label_dir",
-                            help="directory to vocabulary and label files")
+        parser.add_argument("--vocab_label_dir",
+                            help="directory to vocabulary and label files",
+                            default="", type=str)
         parser.add_argument(
             '--vocab_file', help='path to vocabulary file',
-            default='vocabulary.txt'
+            default='vocabulary.txt', type=str
         )
         parser.add_argument(
             '--label_file', help='path to labels file',
-            default='labels.txt'
+            default='labels.txt', type=str
         )
+        parser.add_argument(
+            "--mode", help="mode for creating ctf file",
+            default=ONEHOT_MODE, type=str)
 
         args = vars(parser.parse_args(sys.argv[2:]))
 
         generate_CTF(
+            args["mode"],
             args['dataset_file_path'],
-            vocab_file_path=os.path.join(
-                args["vocab_label_dir"], args['vocab_file']),
-            label_file_path=os.path.join(
-                args["vocab_label_dir"], args['label_file'])
+            args["vocab_label_dir"],
+            args["vocab_file"],
+            args["label_file"]
         )
     else:
         print(

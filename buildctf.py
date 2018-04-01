@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import sys
-import os
 
 import cntk as C
 import numpy as np
@@ -50,10 +49,9 @@ def get_sentences(file):
 def get_map(mode):
     if mode == GAUSSIAN_MODE:
         return gaussian
-    elif mode == SCALER_MODE:
+    if mode == SCALER_MODE:
         return scaler
-    else:
-        return onehot
+    return onehot
 
 
 def test(y_dim, mode, vocab_dim, file):

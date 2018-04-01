@@ -21,13 +21,10 @@ def get_size(file_path):
         return len(f.readlines())
 
 
-
-
 def get_y_dim(label_file_path, input_dir):
     with open(os.path.join(input_dir, "build.conf")) as f:
         j = json.load(f)
         return get_size(label_file_path) if j["ctf"] != SCALER_MODE else 1
-
 
 
 class CTFDataManager(object):
@@ -72,6 +69,7 @@ class CTFDataManager(object):
             self.x: reader.streams.sentence,
             self.y: reader.streams.label
         }
+
 
 class TrainManager(object):
     def __init__(self, model_wrapper, data_manager, log_path,
@@ -191,7 +189,8 @@ def train_model(args):
     if not os.path.exists(log_path):
         os.mkdir(log_path)
     setup_logger(log_path)
-    train_manager = TrainManager(wrapper, data_manager, log_path, max_epochs=10)
+    train_manager = TrainManager(
+        wrapper, data_manager, log_path, max_epochs=10)
 
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
@@ -206,17 +205,17 @@ def get_args():
 
     parser.add_argument('input_dir', help='Directory containing the dataset')
     parser.add_argument('output_dir', help='Directory to store logs etc.')
-
+    parser.add_argument("mode", help="mode for ctf encoding")
     parser.add_argument(
-        '--train_file_name', help='Name of training set CTF file',
+        '--train_file_name', help='suffix of training set CTF file',
         default='train.ctf'
     )
     parser.add_argument(
-        '--test_file_name', help='Name of testing set CTF file',
+        '--test_file_name', help='suffix of testing set CTF file',
         default='test.ctf'
     )
     parser.add_argument(
-        '--dev_file_name', help='Name of dev set CTF file',
+        '--dev_file_name', help='suffix of dev set CTF file',
         default="dev.ctf"
     )
     parser.add_argument(
@@ -247,6 +246,11 @@ def setup_logger(log_path):
 def main():
     cntk.device.try_set_default_device(cntk.device.gpu(0))
     args = get_args()
+    args["dev_file_name"] = "{}_{}".format(args["mode"], args["dev_file_name"])
+    args["test_file_name"] = "{}_{}".format(
+        args["mode"], args["test_file_name"])
+    args["train_file_name"] = "{}_{}".format(
+        args["mode"], args["train_file_name"])
     train_model(args)
 
 
