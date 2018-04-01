@@ -63,6 +63,27 @@ class LSTMClassificationWrapper(object):
         self.metric = Metric(loss, accuracy)
 
 
+class CNNClassificationWrapper(object):
+    def __init__(self, embedding_dim, x_dim, y_dim, name="CNN_classification"):
+        with C.layers.default_options(activation=C.relu):
+            self.model = C.layers.Sequential([
+                C.layers.Embedding(embedding_dim, name="embed"),
+                C.layers.Convolution(
+                    (None, 3), num_filters=20, sequential=True),
+                C.layers.GlobalAveragePooling(),
+                C.layers.Dense((100,)),
+                C.layers.Dense((y_dim, ))
+            ], name=name)
+        self.metric = None
+        self.name = name
+
+    def bind(self, x, y):
+        self.model = self.model(x)
+        loss = C.cross_entropy_with_softmax(self.model, y)
+        accuracy = 1 - C.not_equal(C.argmax(self.model), C.argmax(y))
+        self.metric = Metric(loss, accuracy)
+
+
 class GaussianClassificationWrapper(LSTMClassificationWrapper):
     def __init__(self, embedding_dim, lstm_hidden_dim,
                  x_dim, y_dim, name="clasification_with_gaussian"):
