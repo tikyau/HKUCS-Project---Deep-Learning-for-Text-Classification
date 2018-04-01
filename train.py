@@ -7,10 +7,9 @@ import signal
 import argparse
 import inspect
 import json
+import random
 
 import cntk as C
-from cntk.train.training_session import CrossValidationConfig,\
-    training_session, CheckpointConfig, TestConfig
 import cntk.device
 from models import LSTMClassificationWrapper, LSTMRegressionWrapper
 from buildctf import GAUSSIAN_MODE, SCALER_MODE, ONEHOT_MODE
@@ -168,21 +167,21 @@ def get_log_path(output_dir, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMClassificationWrapper(300, 1024, x_dim=x_dim, y_dim=y_dim)
+    return LSTMClassificationWrapper(300, 256, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(args):
 
     C.cntk_py.set_fixed_random_seed(1)
     data_manager = CTFDataManager(**args)
-
     wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
     wrapper.bind(data_manager.x, data_manager.y)
 
     output_dir = args['output_dir']
     run_name = args['run_name']
-    run_name = run_name or "{}_{}".format(
-        os.path.basename(os.path.normpath(args["input_dir"])), wrapper.name)
+    run_name = run_name or "{}_{}_{}".format(
+        os.path.basename(os.path.normpath(args["input_dir"])),
+        args["mode"], wrapper.name)
     log_path = get_log_path(output_dir, run_name)
     if not os.path.exists(output_dir):
         os.mkdir(output_dir)
