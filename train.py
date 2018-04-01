@@ -119,6 +119,7 @@ class TrainManager(object):
     def train(self):
         checkpoint = os.path.join(self.log_path, "checkpoint")
         print("epoch sizes: ", self.epoch_size)
+        best_result = 0
         for i in range(self.max_epochs):
             accumulated = 0
             while accumulated < self.epoch_size:
@@ -127,9 +128,13 @@ class TrainManager(object):
                 accumulated += self.minibatch_size
                 if (accumulated // self.minibatch_size) % 5000 == 0:
                     self.evaluate()
-            self.evaluate()
+            accuracy = self.evaluate()
+            if accuracy > best_result:
+                self.model.save("{}.best".format(checkpoint))
+                best_result = accuracy
             self.model.save("{}.{}".format(checkpoint, i))
         self.trainer.summarize_training_progress()
+        return best_result
 
     def evaluate(self):
         pos = self.dev_reader.current_position
@@ -141,7 +146,7 @@ class TrainManager(object):
             self.evaluator.test_minibatch(batch)
             batch = self.dev_reader.next_minibatch(
                 self.minibatch_size, input_map=self.dev_map)
-        self.evaluator.summarize_test_progress()
+        return self.evaluator.summarize_test_progress()
 
 
 def save_config(log_path, wrapper, train_manager, args):
@@ -160,33 +165,26 @@ def save_config(log_path, wrapper, train_manager, args):
         json.dump(args, f)
 
 
-def get_log_path(output_dir, run_name):
+def get_log_path(input_dir, mode, output_dir, name, run_name):
+    run_name = run_name or "{}_{}_{}".format(
+        os.path.basename(os.path.normpath(input_dir)),
+        mode, name)
     time_name = datetime.now().strftime("%h,%d_%H_%M")
     log_path = os.path.join(output_dir, "{}_{}".format(run_name, time_name))
-    return log_path
+    if not os.path.exists(output_dir):
+        os.mkdir(output_dir)
+    if not os.path.exists(log_path):
+        os.mkdir(log_path)
 
 
 def get_model(x_dim, y_dim):
     return LSTMClassificationWrapper(300, 256, x_dim=x_dim, y_dim=y_dim)
 
 
-def train_model(args):
+def train_model(data_manager, wrapper, log_path):
 
-    C.cntk_py.set_fixed_random_seed(1)
-    data_manager = CTFDataManager(**args)
-    wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
     wrapper.bind(data_manager.x, data_manager.y)
 
-    output_dir = args['output_dir']
-    run_name = args['run_name']
-    run_name = run_name or "{}_{}_{}".format(
-        os.path.basename(os.path.normpath(args["input_dir"])),
-        args["mode"], wrapper.name)
-    log_path = get_log_path(output_dir, run_name)
-    if not os.path.exists(output_dir):
-        os.mkdir(output_dir)
-    if not os.path.exists(log_path):
-        os.mkdir(log_path)
     setup_logger(log_path)
     train_manager = TrainManager(
         wrapper, data_manager, log_path, max_epochs=10)
@@ -194,9 +192,9 @@ def train_model(args):
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
     print("Training size:", data_manager.train_size)
-    train_manager.train()
+    result = train_manager.train()
     save_config(log_path, wrapper, train_manager, args)
-    wrapper.model.save(os.path.join(log_path, "final_model"))
+    return result
 
 
 def get_args():
@@ -233,6 +231,8 @@ def get_args():
         '--run_name', help='Name of current run, default input_dir+model',
         default=''
     )
+    parser.add_argument("--search", help="do random search",
+                        default=False, type=bool)
     return vars(parser.parse_args(sys.argv[1:]))
 
 
@@ -244,13 +244,41 @@ def setup_logger(log_path):
 
 def main():
     cntk.device.try_set_default_device(cntk.device.gpu(0))
+    C.cntk_py.set_fixed_random_seed(1)
     args = get_args()
     args["dev_file_name"] = "{}_{}".format(args["mode"], args["dev_file_name"])
     args["test_file_name"] = "{}_{}".format(
         args["mode"], args["test_file_name"])
     args["train_file_name"] = "{}_{}".format(
         args["mode"], args["train_file_name"])
-    train_model(args)
+    data_manager = CTFDataManager(**args)
+    log_path = get_log_path(
+        args["input_dir"], args["mode"], output_dir, wrapper.name, args["run_name"])
+    if not args["search"]:
+        wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
+        train_model(data_manager, wrapper, log_path)
+        return
+    try_embedding = 10
+    try_lstm = 10
+    best_embedding = 0
+    best_lstm = 0
+    best_result = 0
+    for i in range(try_embedding):
+        for j in range(try_lstm):
+            embedding = random.randrange(200, 1000, 20)
+            lstm = random.randrange(200, 1000, 20)
+            wrapper = LSTMClassificationWrapper(
+                embedding, lstm, data_manager.x_dim, data_manager.y_dim)
+            result = train_model(data_manager, wrapper, log_path)
+            print("Embedding: {}\tLSTM: {}\t Accuracy: {}".format(
+                embedding, lstm, result))
+            if result > best_result:
+                best_result = result
+                best_embedding = embedding
+                best_lstm = lstm
+    print("best result: ")
+    print("Embedding: {}\tLSTM: {}\t Accuracy: {}".format(
+        best_embedding, best_lstm, best_result))
 
 
 if __name__ == '__main__':
