@@ -2,6 +2,7 @@
 from __future__ import (absolute_import, division, print_function)
 import os
 import sys
+from functools import partial
 from datetime import datetime
 import signal
 import argparse
@@ -83,6 +84,8 @@ class TrainManager(object):
         self.train_map = data_manager.get_train_map()
         self.metric = model_wrapper.metric
         self.model = model_wrapper.model
+        self.x = data_manager.x
+        self.y = data_manager.y
         learner = self._create_learner()
         self.loggers = self._create_loggers()
         self.trainer = C.Trainer(
@@ -139,17 +142,22 @@ class TrainManager(object):
     def evaluate(self):
         pos = self.dev_reader.current_position
         pos["minibatchSourcePosition"] = 0
+        num_samples = 0
+        correct_samples = 0
         self.dev_reader.current_position = pos
         batch = self.dev_reader.next_minibatch(
             self.minibatch_size, input_map=self.dev_map)
         while batch:
-            self.evaluator.test_minibatch(batch)
+            num_samples += batch[self.x].num_samples
+            avg_acc = self.evaluator.test_minibatch(batch)
+            correct_samples += num_samples * avg_acc
             batch = self.dev_reader.next_minibatch(
                 self.minibatch_size, input_map=self.dev_map)
-        return self.evaluator.summarize_test_progress()
+        self.evaluator.summarize_test_progress()
+        return correct_samples / num_samples
 
 
-def save_config(log_path, wrapper, train_manager, args):
+def save_config(wrapper, train_manager, log_path, args):
 
     wrapper_code = inspect.getsource(wrapper.__class__)
     train_manager_code = inspect.getsource(train_manager.__class__)
@@ -175,16 +183,16 @@ def get_log_path(input_dir, mode, output_dir, name, run_name):
         os.mkdir(output_dir)
     if not os.path.exists(log_path):
         os.mkdir(log_path)
+    return log_path
 
 
 def get_model(x_dim, y_dim):
     return LSTMClassificationWrapper(300, 256, x_dim=x_dim, y_dim=y_dim)
 
 
-def train_model(data_manager, wrapper, log_path):
+def train_model(data_manager, wrapper, log_path, args):
 
     wrapper.bind(data_manager.x, data_manager.y)
-
     setup_logger(log_path)
     train_manager = TrainManager(
         wrapper, data_manager, log_path, max_epochs=10)
@@ -193,7 +201,7 @@ def train_model(data_manager, wrapper, log_path):
     print('Number of labels:', data_manager.y_dim)
     print("Training size:", data_manager.train_size)
     result = train_manager.train()
-    save_config(log_path, wrapper, train_manager, args)
+    save_config(wrapper, train_manager, log_path, args)
     return result
 
 
@@ -253,10 +261,11 @@ def main():
         args["mode"], args["train_file_name"])
     data_manager = CTFDataManager(**args)
     log_path = get_log_path(
-        args["input_dir"], args["mode"], output_dir, wrapper.name, args["run_name"])
+        args["input_dir"], args["mode"],
+        args["output_dir"], "classification", args["run_name"])
     if not args["search"]:
         wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
-        train_model(data_manager, wrapper, log_path)
+        train_model(data_manager, wrapper, log_path, args)
         return
     try_embedding = 10
     try_lstm = 10
@@ -269,15 +278,16 @@ def main():
             lstm = random.randrange(200, 1000, 20)
             wrapper = LSTMClassificationWrapper(
                 embedding, lstm, data_manager.x_dim, data_manager.y_dim)
-            result = train_model(data_manager, wrapper, log_path)
-            print("Embedding: {}\tLSTM: {}\t Accuracy: {}".format(
+            print("trying Embedding: {}\tLSTM: {}".format(embedding, lstm))
+            result = train_model(data_manager, wrapper, log_path, args)
+            print("Embedding: {}\tLSTM: {}\t Accuracy: {:.2f}".format(
                 embedding, lstm, result))
             if result > best_result:
                 best_result = result
                 best_embedding = embedding
                 best_lstm = lstm
     print("best result: ")
-    print("Embedding: {}\tLSTM: {}\t Accuracy: {}".format(
+    print("Embedding: {}\tLSTM: {}\t Accuracy: {:.2f}".format(
         best_embedding, best_lstm, best_result))
 
 
