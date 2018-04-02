@@ -69,6 +69,7 @@ def test(y_dim, mode, vocab_dim, file):
 
 def build(in_file, out_file, vocab_file, label_file, mode):
     vocab = get_vocab(vocab_file)
+    print("{} vocabularies in total".format(len(vocab)))
     sentences = get_sentences(in_file)
     mapper = get_map(mode)
     num_labels = 0

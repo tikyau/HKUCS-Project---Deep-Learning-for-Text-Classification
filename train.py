@@ -24,7 +24,7 @@ def get_size(file_path):
 def get_y_dim(label_file_path, input_dir):
     with open(os.path.join(input_dir, "build.conf")) as f:
         j = json.load(f)
-        return get_size(label_file_path) if j["ctf"] != SCALER_MODE else 1
+        return get_size(label_file_path) if j["mode"] != SCALER_MODE else 1
 
 
 class CTFDataManager(object):
@@ -73,7 +73,7 @@ class CTFDataManager(object):
 
 class TrainManager(object):
     def __init__(self, model_wrapper, data_manager, log_path,
-                 minibatch_size=1024, max_epochs=20):
+                 minibatch_size=1024, max_epochs=50):
         self.max_epochs = max_epochs
         self.log_path = log_path
         self.epoch_size = data_manager.train_size
@@ -187,7 +187,7 @@ def get_log_path(input_dir, mode, output_dir, name, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return CNNClassificationWrapper(300, x_dim=x_dim, y_dim=y_dim)
+    return LSTMClassificationWrapper(300, 500, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(data_manager, wrapper, log_path, args):
@@ -195,7 +195,7 @@ def train_model(data_manager, wrapper, log_path, args):
     wrapper.bind(data_manager.x, data_manager.y)
     setup_logger(log_path)
     train_manager = TrainManager(
-        wrapper, data_manager, log_path, max_epochs=10)
+        wrapper, data_manager, log_path)
 
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)

@@ -13,8 +13,6 @@ import sys
 import argparse
 
 
-import jieba
-from snownlp import SnowNLP
 
 from buildctf import ONEHOT_MODE
 
@@ -35,16 +33,14 @@ def is_Chinese_char(c):
     )))
 
 
-def segment(data_field, label_field, row):
+def segment(data_field, label_field, row, filter_func):
     sentence = row[data_field].strip()
     if not sentence:
         return (sentence, [], row[label_field])
     sentence = sentence.replace("\n", "\\n").replace(
         "\t", "\\t").replace('\r', "\\r")
     words = jieba.cut(SnowNLP(sentence).han)
-    valid_words = list(filter(lambda x: x and all(map(
-        lambda y: is_Chinese_char(y) and y not in IGNORED_CHAR and not y.isspace(), x)),
-        words))
+    valid_words = list(filter(filter_func, words))
     return (sentence, valid_words, row[label_field])
 
 
@@ -65,18 +61,33 @@ def replace_unknown(known_vocabs, records, train_size):
 
 
 def to_ctf(output_dir, prefix, vocab_file, label_file, mode):
+    conf = os.path.join(output_dir, "build.conf")
+    with open(conf, "r") as f:
+        j = json.load(f)
+        j["mode"] = mode
+    with open(conf, "w") as f:
+        json.dump(j, f)
     input_file = os.path.join(output_dir, prefix + ".txt")
     output_file = os.path.join(output_dir, prefix + ".ctf")
     vocab_file = os.path.join(output_dir, vocab_file)
     label_file = os.path.join(output_dir, label_file)
     subprocess.call("./buildctf.py {} {} {} {} {}".format(input_file,
-                                                          output_file, vocab_file,
-                                                          label_file, mode), shell=True)
+                                                          output_file,
+                                                          vocab_file,
+                                                          label_file,
+                                                          mode),
+                    shell=True)
 
 
-def segment_csv(csv_file, data_field, label_field, output_file):
+def segment_csv(csv_file, data_field, label_field, output_file,
+                filter_words=False):
     jieba.enable_parallel(multiprocessing.cpu_count())
     print("[segment]\tprocessing CSV file...")
+    if filter_words:
+        filter_func = lambda x: x and all (map(
+            lambda y: is_Chinese_char(y) and y not in IGNORED_CHAR and not y.isspace(), x))
+    else:
+        filter_func = lambda x: 
     with open(csv_file, newline="") as f:
         reader = csv.DictReader(f, delimiter=",", quotechar='"')
         result = []
@@ -150,7 +161,8 @@ def split(input_file, output_dir, train_prefix="train",
         f.write("\n".join(labels))
 
 
-def generate_CTF(mode, dataset_file_path, vocab_label_dir, vocab_file, label_file):
+def generate_CTF(mode, dataset_file_path,
+                 vocab_label_dir, vocab_file, label_file):
     output_dir = os.path.dirname(dataset_file_path)
     if not vocab_label_dir:
         vocab_label_dir = output_dir
@@ -162,8 +174,10 @@ def generate_CTF(mode, dataset_file_path, vocab_label_dir, vocab_file, label_fil
     print('[generate_CTF]\tGenerating CTF file for {} set ...'
           .format(dataset_name))
     subprocess.call("./buildctf.py {} {} {} {} {}".format(dataset_file_path,
-                                                          output_file, vocab_file,
-                                                          label_file, mode), shell=True)
+                                                          output_file,
+                                                          vocab_file,
+                                                          label_file, mode),
+                    shell=True)
     print('[generate_CTF]\tCTF file {} successfully generated!'
           .format(output_file))
 
@@ -175,6 +189,8 @@ if __name__ == "__main__":
             file=sys.stderr)
         sys.exit(0)
     if sys.argv[1] == 'segment':
+        import jieba
+        from snownlp import SnowNLP
         parser = argparse.ArgumentParser(
             description='Build dataset from CSV. segment the sentences')
         POSITIONALS = [("csv_file", "path to csv file"),
@@ -184,10 +200,11 @@ if __name__ == "__main__":
 
         for arg, h in POSITIONALS:
             parser.add_argument(arg, help=h)
-
+        parser.add_argument("filter_words", help="filter non-Chinese words",
+                            default=False, type=bool)
         args = vars(parser.parse_args(sys.argv[2:]))
         positionals = [args[i[0]] for i in POSITIONALS]
-        segment_csv(*positionals)
+        segment_csv(*positionals, filter_words=args["filter_words"])
     elif sys.argv[1] == "split":
         parser = argparse.ArgumentParser(
             description='Build dataset from CSV. segment the sentences\
@@ -206,7 +223,8 @@ if __name__ == "__main__":
             ("label_file", "filename for labels", "labels.txt", str),
             ("max_size", "maximum number of entries from each label", 0, int),
             ("ignored_labels", "labels to be ignored", "", str),
-            ("even", "keep numbers of entries from all labels balanced", False, bool),
+            ("even",
+             "keep numbers of entries from all labels balanced", False, bool),
         ]
         for arg, h in POSITIONALS:
             parser.add_argument(arg, help=h)

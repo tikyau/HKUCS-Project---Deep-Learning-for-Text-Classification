@@ -69,7 +69,7 @@ class CNNClassificationWrapper(object):
             self.model = C.layers.Sequential([
                 C.layers.Embedding(300),
                 C.layers.Convolution(
-                    (3, 1), 20, sequential=True, reduction_rank=0),
+                    (1, 3), 20, sequential=True, reduction_rank=0),
                 C.sequence.reduce_max,
                 C.layers.BatchNormalization(),
                 C.layers.Dropout(0.5),
