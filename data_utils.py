@@ -13,7 +13,6 @@ import sys
 import argparse
 
 
-
 from buildctf import ONEHOT_MODE
 
 UNKNOWN_TOKEN = "UNKNOWN"
@@ -33,14 +32,15 @@ def is_Chinese_char(c):
     )))
 
 
-def segment(data_field, label_field, row, filter_func):
+def segment(data_field, label_field, row):
     sentence = row[data_field].strip()
     if not sentence:
         return (sentence, [], row[label_field])
     sentence = sentence.replace("\n", "\\n").replace(
         "\t", "\\t").replace('\r', "\\r")
     words = jieba.cut(SnowNLP(sentence).han)
-    valid_words = list(filter(filter_func, words))
+    valid_words = list(filter(lambda x: x and all(
+        map(lambda y: not y.isspace())), words))
     return (sentence, valid_words, row[label_field])
 
 
@@ -79,15 +79,9 @@ def to_ctf(output_dir, prefix, vocab_file, label_file, mode):
                     shell=True)
 
 
-def segment_csv(csv_file, data_field, label_field, output_file,
-                filter_words=False):
+def segment_csv(csv_file, data_field, label_field, output_file):
     jieba.enable_parallel(multiprocessing.cpu_count())
     print("[segment]\tprocessing CSV file...")
-    if filter_words:
-        filter_func = lambda x: x and all (map(
-            lambda y: is_Chinese_char(y) and y not in IGNORED_CHAR and not y.isspace(), x))
-    else:
-        filter_func = lambda x: 
     with open(csv_file, newline="") as f:
         reader = csv.DictReader(f, delimiter=",", quotechar='"')
         result = []
@@ -127,16 +121,32 @@ def truncate_labels(sentences, even, max_size):
             sentences[label] = sentences[label][:size]
 
 
+def filter_non_Chinese(words):
+    return list(
+        filter(
+            lambda x: all(
+                map(
+                    lambda y: is_Chinese_char(y) and y not in IGNORED_CHAR,
+                    x
+                ),
+            ),
+            words
+        )
+    )
+
+
 def split(input_file, output_dir, train_prefix="train",
           test_prefix="test", dev_prefix="dev", train_ratio=0.8,
           dev_ratio=0.1, max_size=0, vocab_file="vocabulary.txt",
-          label_file="labels.txt", ignored_labels="",
+          label_file="labels.txt", ignored_labels="", filter_words=False,
           even=False):
     assert(train_ratio + dev_ratio < 1)
     sentences = read_input(input_file, ignored_labels)
     truncate_labels(sentences, even, max_size)
     labels = sentences.keys()
-    records = list(itertools.chain.from_iterable([[(i[0], i[1], label) for i in sentences[label]]
+    filter_func = filter_non_Chinese if filter_words else lambda x: x
+    records = list(itertools.chain.from_iterable([[(i[0], filter_func(i[1]), label)
+                                                   for i in sentences[label]]
                                                   for label in sentences.keys()]))
     del sentences
     print("[build] splitting to train/dev/test set...")
