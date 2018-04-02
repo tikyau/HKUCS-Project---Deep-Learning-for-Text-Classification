@@ -21,12 +21,6 @@ def get_size(file_path):
         return len(f.readlines())
 
 
-def get_y_dim(label_file_path, input_dir):
-    with open(os.path.join(input_dir, "build.conf")) as f:
-        j = json.load(f)
-        return get_size(label_file_path) if j["mode"] != SCALER_MODE else 1
-
-
 class CTFDataManager(object):
     def __init__(self, **kwargs):
         input_dir = kwargs['input_dir']
@@ -37,7 +31,7 @@ class CTFDataManager(object):
         vocab_file_path = os.path.join(input_dir, kwargs['vocab_file_name'])
         label_file_path = os.path.join(input_dir, kwargs['label_file_name'])
         self.x_dim = get_size(vocab_file_path)
-        self.y_dim = get_y_dim(label_file_path, input_dir)
+        self.y_dim = get_size(label_file_path) if kwargs["mode"] != SCALER_MODE else 1
         self.train_size = get_size(train_file_plain)
         self.x = C.sequence.input_variable(self.x_dim, is_sparse=True)
         self.y = C.input_variable(self.y_dim)
