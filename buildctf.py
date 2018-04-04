@@ -72,7 +72,6 @@ def build(in_file, out_file, vocab_file, label_file, mode):
     print("{} vocabularies in total".format(len(vocab)))
     sentences = get_sentences(in_file)
     mapper = get_map(mode)
-    num_labels = 0
     labels = []
     with open(label_file) as f:
         for line in f:
@@ -90,7 +89,7 @@ def build(in_file, out_file, vocab_file, label_file, mode):
             f.write('\n')
             if i % 1000 == 0:
                 print("[build] written {} lines".format(i))
-    test(num_labels, mode, len(vocab), out_file)
+    test(len(label2index), mode, len(vocab), out_file)
 
 
 if __name__ == "__main__":
