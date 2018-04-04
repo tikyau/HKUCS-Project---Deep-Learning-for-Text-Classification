@@ -130,19 +130,17 @@ def split(input_file, output_dir, train_prefix="train",
         print("{build} filtering non-Chinese words...")
         filter_func = filter_non_Chinese
     else:
-        filter_func = lambda x: x
+        def filter_func(x): return x
     records = itertools.chain.from_iterable([[(i[0], filter_func(i[1]), label)
-                                                   for i in sentences[label]]
-                                                  for label in sentences.keys()])
+                                              for i in sentences[label]]
+                                             for label in sentences.keys()])
     if not no_filter:
         records = list(
             filter(
                 lambda x: x[1] and all(
                     map(
-                        lambda y: y and not y.isspace()
-                        , x[1])
-                )
-                , records)
+                        lambda y: y and not y.isspace(), x[1])
+                ), records)
         )
     else:
         records = list(records)
@@ -167,6 +165,7 @@ def split(input_file, output_dir, train_prefix="train",
         f.write('\n')
     with open(os.path.join(output_dir, label_file), "w") as f:
         f.write("\n".join(labels))
+        f.write('\n')
 
 
 def generate_CTF(mode, dataset_file_path,

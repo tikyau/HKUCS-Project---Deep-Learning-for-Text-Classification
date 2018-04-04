@@ -11,18 +11,18 @@ ONEHOT_MODE = "onehot"
 SCALER_MODE = "scaler"
 
 
-def onehot(num_labels, i):
-    result = np.zeros(num_labels)
-    result[int(i) - 1] = 1
+def onehot(label2index, i):
+    result = np.zeros(len(label2index))
+    result[label2index[i]] = 1
     return result
 
 
-def gaussian(num_labels, i):
-    return gaussian_filter1d(onehot(num_labels, i), 0.5)
+def gaussian(label2index, i):
+    return gaussian_filter1d(onehot(label2index, i), 0.5)
 
 
-def scaler(num_labels, i):
-    return [int(i) - 1]
+def scaler(label2index, i):
+    return [label2index[i]]
 
 
 def get_vocab(vocab_file):
@@ -73,14 +73,17 @@ def build(in_file, out_file, vocab_file, label_file, mode):
     sentences = get_sentences(in_file)
     mapper = get_map(mode)
     num_labels = 0
+    labels = []
     with open(label_file) as f:
-        num_labels = len(f.readlines())
-    result = ""
+        for line in f:
+            labels.append(int(line[:-1]))
+    labels = list(sorted(labels))
+    label2index = {str(labels[i]): i for i in range(len(labels))}
     with open(out_file, "w") as f:
         for i in range(len(sentences)):
             sentence = np.array([[str(vocab[w]) + ":1"]
                                  for w in sentences[i][0]])
-            label = np.array([mapper(num_labels, sentences[i][1])])
+            label = np.array([mapper(label2index, sentences[i][1])])
             mapping = {"S0": sentence, "S1": label}
             result = C.io.sequence_to_cntk_text_format(i, mapping)
             f.write(result)
