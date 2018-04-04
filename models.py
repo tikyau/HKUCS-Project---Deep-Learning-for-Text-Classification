@@ -14,10 +14,22 @@ def BiRecurrence(fwd, bwd):
     return apply_x
 
 
-class LSTMRegressionWrapper(object):
+class Classifier(object):
+    def __init__(self):
+        self.model = None
+        self.metric = None
 
+    def bind(self, x, y):
+        self.model = self.model(x)
+        loss = C.cross_entropy_with_softmax(self.model, y)
+        accuracy = 1 - C.not_equal(C.argmax(self.model), C.argmax(y))
+        self.metric = Metric(loss, accuracy)
+
+
+class LSTMRegressionWrapper(Classifier):
     def __init__(self, embedding_dim, lstm_hidden_dim, x_dim, y_dim,
                  name="LSTM_linear_regression_tanh"):
+        super().__init__()
         with C.layers.default_options(activation=C.tanh):
             self.model = C.layers.Sequential([
                 C.layers.Embedding(embedding_dim, name='embed'),
@@ -39,9 +51,10 @@ class LSTMRegressionWrapper(object):
         self.metric = Metric(loss, accuracy)
 
 
-class LSTMClassificationWrapper(object):
+class LSTMClassificationWrapper(Classifier):
     def __init__(self, embedding_dim, lstm_hidden_dim, x_dim, y_dim,
                  name="LSTM_classification"):
+        super().__init__()
         with C.layers.default_options(activation=C.tanh):
             self.model = C.layers.Sequential([
                 C.layers.Embedding(embedding_dim, name='embed'),
@@ -53,47 +66,27 @@ class LSTMClassificationWrapper(object):
                 C.layers.BatchNormalization(),
                 C.layers.Dense((y_dim, ))
             ], name=name)
-        self.metric = None
         self.name = name
 
-    def bind(self, x, y):
-        self.model = self.model(x)
-        loss = C.cross_entropy_with_softmax(self.model, y)
-        accuracy = 1 - C.not_equal(C.argmax(self.model), C.argmax(y))
-        self.metric = Metric(loss, accuracy)
 
-
-class CNNClassificationWrapper(object):
+class CNNClassificationWrapper(Classifier):
     def __init__(self, embedding_dim, x_dim, y_dim, name="CNN_classification"):
+        super().__init__()
         with C.layers.default_options(activation=C.relu):
             self.model = C.layers.Sequential([
                 C.layers.Embedding(embedding_dim),
-                C.layers.Convolution(
-                    (2, embedding_dim), 128,
-                    sequential=True, reduction_rank=0,
-                    pad=True, strides=(1, embedding_dim)),
+                C.layers.For(range(3), lambda x: [
+                    C.layers.Convolution(
+                        (2, embedding_dim), embedding_dim,
+                        sequential=True, reduction_rank=0,
+                        pad=True, strides=(1, embedding_dim)
+                    ),
+                    C.ops.squeeze,
+                    C.layers.BatchNormalization()
+                ])
                 C.sequence.reduce_max,
-                C.layers.BatchNormalization(),
                 C.layers.Dense(50),
                 C.layers.Dense(y_dim)
             ])
         self.metric = None
         self.name = name
-
-    def bind(self, x, y):
-        self.model = self.model(x)
-        loss = C.cross_entropy_with_softmax(self.model, y)
-        accuracy = 1 - C.not_equal(C.argmax(self.model), C.argmax(y))
-        self.metric = Metric(loss, accuracy)
-
-
-class GaussianClassificationWrapper(LSTMClassificationWrapper):
-    def __init__(self, embedding_dim, lstm_hidden_dim,
-                 x_dim, y_dim, name="clasification_with_gaussian"):
-        super.__init__(embedding_dim, lstm_hidden_dim, x_dim, y_dim, name)
-
-    def bind(self, x, y):
-        self.model = self.model(x)
-        loss = C.cross_entropy_with_softmax(self.model, y)
-        accuracy = 1 - C.classification_error(self.model, y)
-        self.metric = Metric(loss, accuracy)
