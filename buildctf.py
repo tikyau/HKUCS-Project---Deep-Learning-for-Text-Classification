@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys
+import os
 
 import cntk as C
 import numpy as np
@@ -9,6 +9,23 @@ from scipy.ndimage.filters import gaussian_filter1d
 GAUSSIAN_MODE = "gaussian"
 ONEHOT_MODE = "onehot"
 SCALER_MODE = "scaler"
+
+
+def generate_CTF(mode, dataset_file_path,
+                 vocab_label_dir, vocab_file, label_file):
+    output_dir = os.path.dirname(dataset_file_path)
+    if not vocab_label_dir:
+        vocab_label_dir = output_dir
+    label_file = os.path.join(vocab_label_dir, label_file)
+    vocab_file = os.path.join(vocab_label_dir, vocab_file)
+    dataset_name = os.path.splitext(os.path.basename(dataset_file_path))[0]
+    output_file = os.path.join(
+        output_dir, "{}_{}.ctf".format(mode, dataset_name))
+    print('[generate_CTF]\tGenerating CTF file for {} set ...'
+          .format(dataset_name))
+    build(dataset_file_path, output_file, vocab_file, label_file, mode)
+    print('[generate_CTF]\tCTF file {} successfully generated!'
+          .format(output_file))
 
 
 def onehot(label2index, i):
@@ -90,7 +107,3 @@ def build(in_file, out_file, vocab_file, label_file, mode):
             if i % 1000 == 0:
                 print("[build] written {} lines".format(i))
     test(len(label2index), mode, len(vocab), out_file)
-
-
-if __name__ == "__main__":
-    build(*sys.argv[1:])
