@@ -83,7 +83,7 @@ class CNNClassificationWrapper(Classifier):
                     ),
                     C.ops.squeeze,
                     C.layers.BatchNormalization()
-                ])
+                ]),
                 C.sequence.reduce_max,
                 C.layers.Dense(50),
                 C.layers.Dense(y_dim)
