@@ -7,7 +7,6 @@ import signal
 import argparse
 import inspect
 import json
-import random
 
 import cntk as C
 import cntk.device
@@ -15,7 +14,7 @@ from models import LSTMClassificationWrapper, LSTMRegressionWrapper,\
     CNNClassificationWrapper
 
 from buildctf import GAUSSIAN_MODE, SCALER_MODE, ONEHOT_MODE
-from search import search_model
+import search
 
 
 def get_size(file_path):
@@ -126,13 +125,10 @@ class TrainManager(object):
                 self.trainer.train_minibatch(self.train_reader.next_minibatch(
                     self.minibatch_size, input_map=self.train_map))
                 accumulated += self.minibatch_size
-                if (accumulated // self.minibatch_size) % 5000 == 0:
-                    self.evaluate()
             accuracy = self.evaluate()
             if accuracy > best_result:
                 self.model.save("{}.best".format(checkpoint))
                 best_result = accuracy
-            self.model.save("{}.{}".format(checkpoint, i))
         self.trainer.summarize_training_progress()
         return best_result
 
@@ -261,7 +257,7 @@ def main():
         args["input_dir"], args["mode"],
         args["output_dir"], "classification", args["run_name"])
     if args["search"]:
-        search_model(data_manager, log_path, args)
+        search.search_model(data_manager, log_path, args)
     else:
         wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
         train_model(data_manager, wrapper, log_path, args)

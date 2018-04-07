@@ -7,10 +7,11 @@ IGNORED_CHAR = set(["\t", "…", "“", "”"])
 
 
 def process(input_dir, no_filter=False, unknown_threshold=0,
-            replace_unknown=True, train_prefix="train",
-            test_prefix="test", dev_prefix="dev"):
+            remove_unknown=False, train_prefix="train",
+            test_prefix="test", dev_prefix="dev",
+            vocab_file="vocabulary.txt", labels_file="labels.txt"):
     filter_tag = "no_filter" if no_filter else "filter"
-    replace_tag = "replace" if replace_unknown else "remove"
+    replace_tag = "remove" if remove_unknown else "replace"
     dir_name = "{}_{}_{}".format(filter_tag, replace_tag, unknown_threshold)
     output_dir = os.path.join(input_dir, dir_name)
     if not os.path.exists(output_dir):
@@ -30,20 +31,20 @@ def process(input_dir, no_filter=False, unknown_threshold=0,
     counter = collections.Counter(all_words)
     known_vocabs = set(
         [word for word in counter if counter[word] > unknown_threshold])
-    if replace_unknown:
+    if not remove_unknown:
         known_vocabs.add(UNKNOWN_TOKEN)
     print("[process] processing unknown token...")
-    train_set = process_unknown(train_set, known_vocabs, replace_unknown)
-    dev_set = process_unknown(dev_set, known_vocabs, replace_unknown)
-    test_set = process_unknown(test_set, known_vocabs, replace_unknown)
+    train_set = process_unknown(train_set, known_vocabs, not remove_unknown)
+    dev_set = process_unknown(dev_set, known_vocabs, not remove_unknown)
+    test_set = process_unknown(test_set, known_vocabs, not remove_unknown)
     print("[process] writing to files...")
     write_to_file(train_set, train_prefix, output_dir)
     write_to_file(dev_set, dev_prefix, output_dir)
     write_to_file(test_set, test_prefix, output_dir)
-    with open(os.path.join(output_dir, "vocabulary.txt"), "w") as f:
+    with open(os.path.join(output_dir, vocab_file), "w") as f:
         for vocab in known_vocabs:
             f.write("{}\n".format(vocab))
-    with open(os.path.join(output_dir, "labels.txt"), "w") as f:
+    with open(os.path.join(output_dir, labels_file), "w") as f:
         for label in labels:
             f.write("{}\n".format(label))
 

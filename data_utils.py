@@ -13,7 +13,7 @@ from buildctf import ONEHOT_MODE
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
         print(
-            'First argument must be "segment", "split", or "ctf".',
+            'First argument must be "segment", "split", "process", or "ctf".',
             file=sys.stderr)
         sys.exit(0)
     if sys.argv[1] == 'segment':
@@ -44,13 +44,11 @@ if __name__ == "__main__":
             ("test_prefix", "", "test", str),
             ("train_ratio", "", 0.8, float),
             ("dev_ratio", "", 0.1, float),
-
             ("max_size", "maximum number of entries from each label", 0, int),
             ("ignored_labels", "labels to be ignored", "", str),
         ]
         FLAGS = [
             ("even", "keep numbers of entries from all labels balanced"),
-
         ]
         for arg, h in POSITIONALS:
             parser.add_argument(arg, help=h)
@@ -77,11 +75,13 @@ if __name__ == "__main__":
             ("dev_prefix", "", "dev", str),
             ("test_prefix", "", "test", str),
             ("vocab_file", "filename for vocabulary", "vocabulary.txt", str),
-            ("label_file", "filename for labels", "labels.txt", str),
+            ("labels_file", "filename for labels", "labels.txt", str),
             ("unknown_threshold", "threshold for marking word as UNKOWN", 0, int)
         ]
         FLAGS = [
-            ("no_filter", "filter non-Chinese words")
+            ("no_filter", "filter non-Chinese words"),
+            ("remove_unknown", "if specified, unknown token will be added,\
+ else all unknown words will be disgarded")
         ]
         for arg, h, default, t in OPTIONALS:
             parser.add_argument("--" + arg, help=h, default=default, type=t)

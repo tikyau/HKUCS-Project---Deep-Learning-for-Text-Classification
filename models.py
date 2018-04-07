@@ -99,7 +99,7 @@ class CNNClassificationWrapper(Classifier):
 
 class CNNRegressionWrapper(Regression):
     def __init__(self, embedding_dim, conv_layers, conv_words,
-                 reducer, x_dim, y_dim, reducer, name="CNN_regression"):
+                 reducer, x_dim, y_dim, name="CNN_regression"):
         super().__init__()
         with C.layers.default_options(activation=C.relu):
             self.model = C.layers.Sequential([
