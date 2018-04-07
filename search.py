@@ -44,11 +44,11 @@ def search_lstm(data_manager, log_path, args):
                     best_embedding = embedding
                     best_lstm = lstm
                     best_reducer = reducer
+                with open(os.path.join(log_path, "result.json"), "w") as f:
+                    json.dump(all_result, f)
     print("best result: ")
     print("Embedding: {}\tLSTM: {}\t reducer:{}\tAccuracy: {:.2f}".format(
         best_embedding, best_lstm, best_reducer, best_result))
-    with open(os.path.join(log_path, "result.json"), "w") as f:
-        json.dump(all_result, f)
 
 
 def search_model(data_manager, log_path, args):
