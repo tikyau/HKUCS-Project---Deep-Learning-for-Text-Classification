@@ -183,12 +183,12 @@ def get_model(x_dim, y_dim):
     return LSTMClassificationWrapper(300, 600, C.sequence.reduce_max, x_dim=x_dim, y_dim=y_dim)
 
 
-def train_model(data_manager, wrapper, log_path, args):
+def train_model(data_manager, wrapper, log_path, args, **kwargs):
 
     wrapper.bind(data_manager.x, data_manager.y)
     setup_logger(log_path)
     train_manager = TrainManager(
-        wrapper, data_manager, log_path)
+        wrapper, data_manager, log_path, **kwargs)
 
     print('Vocabulary size :', data_manager.x_dim)
     print('Number of labels:', data_manager.y_dim)
@@ -239,7 +239,7 @@ def get_args():
 
 def setup_logger(log_path):
     if signal.getsignal(signal.SIGHUP) != signal.SIG_DFL:
-        sys.stdout = open(os.path.join(log_path, "run.log"), "a")
+        sys.stdout = open(os.path.join(log_path, "run.log"), "w")
         sys.stderr = sys.stdout
 
 
