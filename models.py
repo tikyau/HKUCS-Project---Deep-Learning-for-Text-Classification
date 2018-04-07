@@ -74,21 +74,22 @@ class LSTMClassificationWrapper(Classifier):
 
 
 class CNNClassificationWrapper(Classifier):
-    def __init__(self, embedding_dim, conv_layers, x_dim, y_dim, name="CNN_classification"):
+    def __init__(self, embedding_dim, conv_layers, conv_words,
+                 reducer, x_dim, y_dim, name="CNN_classification"):
         super().__init__()
         with C.layers.default_options(activation=C.relu):
             self.model = C.layers.Sequential([
                 C.layers.Embedding(embedding_dim),
                 C.layers.For(range(conv_layers), lambda x: [
                     C.layers.Convolution(
-                        (2, embedding_dim), embedding_dim,
+                        (conv_words, embedding_dim), embedding_dim,
                         sequential=True, reduction_rank=0,
                         pad=True, strides=(1, embedding_dim)
                     ),
                     C.ops.squeeze,
                     C.layers.BatchNormalization()
                 ]),
-                C.sequence.reduce_max,
+                reducer,
                 C.layers.Dense(50),
                 C.layers.Dense(y_dim)
             ])
@@ -97,7 +98,8 @@ class CNNClassificationWrapper(Classifier):
 
 
 class CNNRegressionWrapper(Regression):
-    def __init__(self, embedding_dim, conv_layers, conv_words, x_dim, y_dim, reducer, name="CNN_regression"):
+    def __init__(self, embedding_dim, conv_layers, conv_words,
+                 reducer, x_dim, y_dim, reducer, name="CNN_regression"):
         super().__init__()
         with C.layers.default_options(activation=C.relu):
             self.model = C.layers.Sequential([

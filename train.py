@@ -13,7 +13,9 @@ import cntk as C
 import cntk.device
 from models import LSTMClassificationWrapper, LSTMRegressionWrapper,\
     CNNClassificationWrapper
+
 from buildctf import GAUSSIAN_MODE, SCALER_MODE, ONEHOT_MODE
+from search import search_model
 
 
 def get_size(file_path):
@@ -31,7 +33,8 @@ class CTFDataManager(object):
         vocab_file_path = os.path.join(input_dir, kwargs['vocab_file_name'])
         label_file_path = os.path.join(input_dir, kwargs['label_file_name'])
         self.x_dim = get_size(vocab_file_path)
-        self.y_dim = get_size(label_file_path) if kwargs["mode"] != SCALER_MODE else 1
+        self.y_dim = get_size(
+            label_file_path) if kwargs["mode"] != SCALER_MODE else 1
         self.train_size = get_size(train_file_plain)
         self.x = C.sequence.input_variable(self.x_dim, is_sparse=True)
         self.y = C.input_variable(self.y_dim)
@@ -181,7 +184,7 @@ def get_log_path(input_dir, mode, output_dir, name, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMClassificationWrapper(300, 600, x_dim=x_dim, y_dim=y_dim)
+    return LSTMClassificationWrapper(300, 600, C.sequence.reduce_max, x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(data_manager, wrapper, log_path, args):
@@ -204,7 +207,8 @@ def get_args():
 
     parser.add_argument('input_dir', help='Directory containing the dataset')
     parser.add_argument('output_dir', help='Directory to store logs etc.')
-    parser.add_argument("mode", help="mode for ctf encoding")
+    parser.add_argument(
+        "--mode", help="mode for ctf encoding", default=ONEHOT_MODE)
     parser.add_argument(
         '--train_file_name', help='suffix of training set CTF file',
         default='train.ctf'
@@ -233,8 +237,7 @@ def get_args():
         '--run_name', help='Name of current run, default input_dir+model',
         default=''
     )
-    parser.add_argument("--search", help="do random search",
-                        default=False, type=bool)
+    parser.add_argument("--search", help="search model", action="store_true")
     return vars(parser.parse_args(sys.argv[1:]))
 
 
@@ -257,32 +260,11 @@ def main():
     log_path = get_log_path(
         args["input_dir"], args["mode"],
         args["output_dir"], "classification", args["run_name"])
-    if not args["search"]:
+    if args["search"]:
+        search_model(data_manager, log_path, args)
+    else:
         wrapper = get_model(data_manager.x_dim, data_manager.y_dim)
         train_model(data_manager, wrapper, log_path, args)
-        return
-    try_embedding = 10
-    try_lstm = 10
-    best_embedding = 0
-    best_lstm = 0
-    best_result = 0
-    for i in range(try_embedding):
-        for j in range(try_lstm):
-            embedding = random.randrange(200, 1000, 20)
-            lstm = random.randrange(200, 1000, 20)
-            wrapper = LSTMClassificationWrapper(
-                embedding, lstm, data_manager.x_dim, data_manager.y_dim)
-            print("trying Embedding: {}\tLSTM: {}".format(embedding, lstm))
-            result = train_model(data_manager, wrapper, log_path, args)
-            print("Embedding: {}\tLSTM: {}\t Accuracy: {:.2f}".format(
-                embedding, lstm, result))
-            if result > best_result:
-                best_result = result
-                best_embedding = embedding
-                best_lstm = lstm
-    print("best result: ")
-    print("Embedding: {}\tLSTM: {}\t Accuracy: {:.2f}".format(
-        best_embedding, best_lstm, best_result))
 
 
 if __name__ == '__main__':
