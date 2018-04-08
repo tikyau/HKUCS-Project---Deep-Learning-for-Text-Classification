@@ -61,7 +61,7 @@ def benchmark_snownlp(data_path):
     labels = set([i[1] for i in sentences])
 
     def scale(i):
-        return math.floor(i * len(labels)) + 1
+        return 0 if i < 0.5 else 1
     confuse_matrix = [[0 for i in range(len(labels))]
                       for j in range(len(labels))]
     total = 0
@@ -70,6 +70,7 @@ def benchmark_snownlp(data_path):
         total += 1
         sentiment = SnowNLP(sentence).sentiments
         predicted = scale(sentiment)
+        print("{}\t{}\t{}".format(sentence, predicted, correct_label))
         correct += 1 if correct_label == predicted else 0
         try:
             confuse_matrix[correct_label - 1][predicted - 1] += 1

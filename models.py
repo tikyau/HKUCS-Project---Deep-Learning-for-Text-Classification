@@ -35,7 +35,7 @@ class Regression(object):
     def bind(self, x, y):
         self.model = self.model(x)
         loss = C.squared_error(self.model * 2.5, C.argmax(y) - 2)
-        accuracy = 1 - C.not_equal(C.round(self.model), C.argmax(y) - 2)
+        accuracy = 1 - C.not_equal(C.round(self.model * 2.5), C.argmax(y) - 2)
         self.metric = Metric(loss, accuracy)
 
 
