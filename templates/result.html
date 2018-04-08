@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Result</title>
+  </head>
+  <body>
+    {% if inp and res %}
+      <h2>
+        Input:&nbsp;{{ inp }}<br>
+        Words:&nbsp;
+        {% for word in res[0] %}
+          {{ word }}/
+        {% endfor %}
+      </h2>
+      <br>
+      <h2>Score:&nbsp;{{ res[1][0] + 1 }}</h2>
+    {% else %}
+    <h1>Error</h1>
+    {% endif %}
+  </body>
+</html>
