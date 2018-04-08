@@ -10,7 +10,7 @@ from models import LSTMClassificationWrapper, LSTMRegressionWrapper,\
 
 def search_lstm(data_manager, log_path, args):
     try_embedding = 10
-    try_lstm = 10
+    try_lstm = 5
     best_embedding = 0
     best_lstm = 0
     best_result = 0
@@ -19,10 +19,10 @@ def search_lstm(data_manager, log_path, args):
     reducers = {"reduce_max": C.sequence.reduce_max,
                 "reduce_sum": C.sequence.reduce_sum,
                 "last": C.sequence.last}
-    for _ in range(try_embedding):
-        embedding = random.randrange(200, 1000, 20)
-        for _ in range(try_lstm):
-            lstm = random.randrange(200, 1000, 20)
+    for i in range(try_embedding):
+        embedding = (i + 1) * 100
+        for l in range(try_lstm):
+            lstm = (l + 1) * 200
             for reducer in reducers:
                 j = {"embedding": embedding, "lstm": lstm, "reducer": reducer}
                 new_log_path = os.path.join(
@@ -34,7 +34,8 @@ def search_lstm(data_manager, log_path, args):
                     data_manager.x_dim, data_manager.y_dim)
                 print("trying Embedding: {}\tLSTM: {}\treducer: {}".format(
                     embedding, lstm, reducer))
-                result = train_model(data_manager, wrapper, new_log_path, args)
+                result = train_model(data_manager, wrapper,
+                                     new_log_path, args, max_epochs=20)
                 print("Embedding: {}\tLSTM: {}\t reducer: {}\tAccuracy: {:.2f}".format(
                     embedding, lstm, reducer, result))
                 j["accuracy"] = result
