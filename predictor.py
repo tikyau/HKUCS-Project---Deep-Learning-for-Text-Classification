@@ -1,6 +1,4 @@
 import multiprocessing
-import sys
-
 
 import cntk as C
 import jieba
@@ -14,6 +12,10 @@ from process_text import UNKNOWN_TOKEN
 
 
 class Predictor(object):
+    '''
+    Predictor class
+    '''
+
     def __init__(self, vocabulary, labels, model):
         jieba.enable_parallel(multiprocessing.cpu_count())
         self.model = C.load_model(model)
@@ -25,29 +27,17 @@ class Predictor(object):
         self.predictor = C.argmax(self.model)
 
     def predict(self, sentence):
-        words = list(jieba.cut(snownlp.SnowNLP(sentence).han))
-        length = len(words)
-        print(list(map(lambda x: x if x in self.vocab else UNKNOWN_TOKEN, words)))
         words = list(
-            map(lambda x: self.vocab[x] if x in self.vocab else self.vocab[UNKNOWN_TOKEN], words))
+            map(
+                lambda w: w if w in self.vocab else UNKNOWN_TOKEN,
+                jieba.cut(snownlp.SnowNLP(sentence).han)
+            )
+        )
+        length = len(words)
+        inp = list(map(lambda w: self.vocab[w], words))
         matrix = csr_matrix(
-            (np.ones(length, ), (range(length), words)),
+            (np.ones(length, ), (range(length), inp)),
             shape=(length, self.x_dim), dtype=np.float32)
-        print(self.predictor.eval({self.x: matrix})[0] + 1)
+        out = self.predictor.eval({self.x: matrix})
 
-
-def main():
-    predictor = Predictor(sys.argv[1], sys.argv[2], sys.argv[3])
-    while True:
-        try:
-            inp = input(">> ")
-        except UnicodeError:
-            continue
-        if inp == ":q":
-            break
-        if inp:
-            predictor.predict(inp)
-
-
-if __name__ == "__main__":
-    main()
+        return (words, out)
