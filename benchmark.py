@@ -3,6 +3,8 @@ import sys
 import math
 import argparse
 import os
+import random
+import requests
 
 
 def get_size(file_path):
@@ -86,7 +88,52 @@ def benchmark_snownlp(data_path):
 
 
 def benchmark_api(data_path):
-    raise NotImplementedError()
+    MICROSOFT_KEY = "241d007895ea46a48b50edeb65be3ed1"
+    REQUEST_URL = "https://westcentralus.api.cognitive.microsoft.com/text/analytics/v2.0/" + "sentiment"
+    sentences = read_sentences(data_path)
+    labels = set([i[1] for i in sentences])
+    random.shuffle(sentences)
+
+    headers = {
+        "Ocp-Apim-Subscription-Key": MICROSOFT_KEY
+    }
+    total = 0
+    total_correct = 0
+    for i in range(min(len(sentences) // 10, 450)):
+        part = sentences[i: i + 10]
+        document = {"documents": toDoc(part)}
+        target = {str(j + 1): part[j][1] for j in range(len(part))}
+        try:
+            response = requests.post(
+                REQUEST_URL, headers=headers, json=document)
+            sentiments = response.json()
+            for doc in sentiments["documents"]:
+                if match(doc, target):
+                    total_correct += 1
+            total += 10
+            print("{}\t{}\t{:2f}".format(
+                total_correct, total, total_correct / total))
+        except Exception as e:
+            print("ERROR!", e)
+
+
+def match(doc, target):
+    def scale(i):
+        return i // 0.2
+    predicted = doc["score"]
+    expected = target[doc["id"]]
+    return expected == scale(predicted)
+
+
+def toDoc(sentences):
+    result = []
+    for i in range(len(sentences)):
+        result.append({
+            "id": str(i + 1),
+            "language": "zh-Hans",
+            "text": sentences[0]
+        })
+    return result
 
 
 def train_snownlp(pos, neg):
