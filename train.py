@@ -180,7 +180,9 @@ def get_log_path(input_dir, mode, output_dir, name, run_name):
 
 
 def get_model(x_dim, y_dim):
-    return LSTMClassificationWrapper(300, 600, C.sequence.reduce_max, x_dim=x_dim, y_dim=y_dim)
+    return LSTMClassificationWrapper(1000, 1000,
+                                     C.sequence.reduce_sum,
+                                     x_dim=x_dim, y_dim=y_dim)
 
 
 def train_model(data_manager, wrapper, log_path, args, **kwargs):
