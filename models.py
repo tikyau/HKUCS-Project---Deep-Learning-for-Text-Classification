@@ -57,6 +57,21 @@ class LSTMRegressionWrapper(Regression):
         self.metric = None
 
 
+class BiLSTMClassificationWrapper(Classifier):
+    def __init__(self, embedding_dim, lstm_hidden_dim, reducer, x_dim, y_dim,
+                 name="BiLSTM_classification"):
+        super().__init__()
+        with C.layers.default_options(activation=C.tanh):
+            self.model = C.layers.Sequential([
+                C.layers.Embedding(embedding_dim, name='embed'),
+                BiRecurrence(C.layers.LSTM(lstm_hidden_dim),
+                             C.layers.LSTM(lstm_hidden_dim)),
+                reducer,
+                C.layers.Dense((y_dim, ))
+            ], name=name)
+        self.name = name
+
+
 class LSTMClassificationWrapper(Classifier):
     def __init__(self, embedding_dim, lstm_hidden_dim, reducer, x_dim, y_dim,
                  name="LSTM_classification"):
