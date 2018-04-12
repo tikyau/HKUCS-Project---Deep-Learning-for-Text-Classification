@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
-import math
+import json
+import time
 import argparse
 import os
 import random
@@ -91,37 +92,43 @@ def benchmark_api(data_path):
     MICROSOFT_KEY = "241d007895ea46a48b50edeb65be3ed1"
     REQUEST_URL = "https://westcentralus.api.cognitive.microsoft.com/text/analytics/v2.0/" + "sentiment"
     sentences = read_sentences(data_path)
-    labels = set([i[1] for i in sentences])
     random.shuffle(sentences)
 
     headers = {
         "Ocp-Apim-Subscription-Key": MICROSOFT_KEY
     }
+    final_json = []
     total = 0
     total_correct = 0
     for i in range(min(len(sentences) // 10, 450)):
-        part = sentences[i: i + 10]
+        part = sentences[i * 10: (i + 1) * 10]
         document = {"documents": toDoc(part)}
-        target = {str(j + 1): part[j][1] for j in range(len(part))}
-        try:
-            response = requests.post(
-                REQUEST_URL, headers=headers, json=document)
-            sentiments = response.json()
-            for doc in sentiments["documents"]:
-                if match(doc, target):
-                    total_correct += 1
-            total += 10
-            print("{}\t{}\t{:2f}".format(
+        target = {str(j + 1): part[j] for j in range(len(part))}
+        time.sleep(2)
+        response = requests.post(
+            REQUEST_URL, headers=headers, json=document)
+        sentiments = response.json()
+        print(sentiments)
+        for doc in sentiments["documents"]:
+            if match(doc, target):
+                total_correct += 1
+            final_json.append({
+                    "text": target[doc["id"]][0],
+                    "label": target[doc["id"]][1],
+                    "predicted": doc["score"]
+                })
+        with open("microsoft.json", "w") as f:
+            json.dump(final_json, f)
+        total += 10
+        print("{}\t{}\t{:2f}".format(
                 total_correct, total, total_correct / total))
-        except Exception as e:
-            print("ERROR!", e)
-
+            
 
 def match(doc, target):
     def scale(i):
         return i // 0.2
     predicted = doc["score"]
-    expected = target[doc["id"]]
+    expected = target[doc["id"]][1]
     return expected == scale(predicted)
 
 
@@ -131,7 +138,7 @@ def toDoc(sentences):
         result.append({
             "id": str(i + 1),
             "language": "zh-Hans",
-            "text": sentences[0]
+            "text": sentences[i][0]
         })
     return result
 
