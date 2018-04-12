@@ -64,8 +64,8 @@ class BiLSTMClassificationWrapper(Classifier):
         with C.layers.default_options(activation=C.tanh):
             self.model = C.layers.Sequential([
                 C.layers.Embedding(embedding_dim, name='embed'),
-                BiRecurrence(C.layers.LSTM(lstm_hidden_dim),
-                             C.layers.LSTM(lstm_hidden_dim)),
+                BiRecurrence(C.layers.LSTM(lstm_hidden_dim // 2),
+                             C.layers.LSTM(lstm_hidden_dim // 2)),
                 reducer,
                 C.layers.Dense((y_dim, ))
             ], name=name)
